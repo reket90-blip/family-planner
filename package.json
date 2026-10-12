@@ -4,8 +4,9 @@
   "private": true,
   "description": "Private family calendar PWA",
   "scripts": {
-    "check": "node --check app.js && node --check sw.js",
-    "test": "node --test"
+    "check": "node --check app.js && node --check sw.js && node --check scripts/build.js",
+    "test": "node --test",
+    "build": "node scripts/build.js"
   },
   "engines": {
     "node": ">=20"
