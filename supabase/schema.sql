@@ -4,6 +4,34 @@
 
 create extension if not exists pgcrypto;
 
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to service_role;
+create table if not exists private.planner_allowed_users (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+revoke all on table private.planner_allowed_users from public, anon, authenticated;
+grant select, insert, update, delete on table private.planner_allowed_users to service_role;
+create or replace function public.is_planner_allowed_user()
+returns boolean language sql stable security definer set search_path = ''
+as $
+  select exists (select 1 from private.planner_allowed_users as allowed where allowed.user_id = auth.uid())
+$;
+revoke all on function public.is_planner_allowed_user() from public, anon;
+grant execute on function public.is_planner_allowed_user() to authenticated, service_role;
+create or replace function public.allow_planner_user(p_user_id uuid)
+returns void language plpgsql security definer set search_path = ''
+as $
+begin
+  if p_user_id is null then raise exception 'user id required'; end if;
+  insert into private.planner_allowed_users(user_id) values (p_user_id) on conflict (user_id) do nothing;
+end;
+$;
+revoke all on function public.allow_planner_user(uuid) from public, anon, authenticated;
+grant execute on function public.allow_planner_user(uuid) to service_role;
+
+
 create table if not exists public.planner_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -72,39 +100,39 @@ grant select, insert, update, delete on table public.planner_settings to authent
 drop policy if exists "users read own planner items" on public.planner_items;
 create policy "users read own planner items"
 on public.planner_items for select to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users insert own planner items" on public.planner_items;
 create policy "users insert own planner items"
 on public.planner_items for insert to authenticated
-with check ((select auth.uid()) = user_id);
+with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users update own planner items" on public.planner_items;
 create policy "users update own planner items"
 on public.planner_items for update to authenticated
-using ((select auth.uid()) = user_id)
-with check ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()))
+with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users delete own planner items" on public.planner_items;
 create policy "users delete own planner items"
 on public.planner_items for delete to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users read own planner settings" on public.planner_settings;
 create policy "users read own planner settings"
 on public.planner_settings for select to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users insert own planner settings" on public.planner_settings;
 create policy "users insert own planner settings"
 on public.planner_settings for insert to authenticated
-with check ((select auth.uid()) = user_id);
+with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 drop policy if exists "users update own planner settings" on public.planner_settings;
 create policy "users update own planner settings"
 on public.planner_settings for update to authenticated
-using ((select auth.uid()) = user_id)
-with check ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()))
+with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 -- No anonymous policies or grants. Keep sign-up disabled in Auth and create the
 -- spouse's account explicitly in the Supabase dashboard before enabling cloud sync.
@@ -112,7 +140,7 @@ with check ((select auth.uid()) = user_id);
 drop policy if exists "users delete own planner settings" on public.planner_settings;
 create policy "users delete own planner settings"
 on public.planner_settings for delete to authenticated
-using ((select auth.uid()) = user_id);
+using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 
 -- Server-scheduled Web Push reminders.
@@ -139,13 +167,13 @@ alter table public.push_subscriptions enable row level security;
 revoke all on table public.push_subscriptions from anon, authenticated;
 grant select, insert, update, delete on table public.push_subscriptions to authenticated;
 drop policy if exists "users read own push subscriptions" on public.push_subscriptions;
-create policy "users read own push subscriptions" on public.push_subscriptions for select to authenticated using ((select auth.uid()) = user_id);
+create policy "users read own push subscriptions" on public.push_subscriptions for select to authenticated using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 drop policy if exists "users insert own push subscriptions" on public.push_subscriptions;
-create policy "users insert own push subscriptions" on public.push_subscriptions for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "users insert own push subscriptions" on public.push_subscriptions for insert to authenticated with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 drop policy if exists "users update own push subscriptions" on public.push_subscriptions;
-create policy "users update own push subscriptions" on public.push_subscriptions for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "users update own push subscriptions" on public.push_subscriptions for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 drop policy if exists "users delete own push subscriptions" on public.push_subscriptions;
-create policy "users delete own push subscriptions" on public.push_subscriptions for delete to authenticated using ((select auth.uid()) = user_id);
+create policy "users delete own push subscriptions" on public.push_subscriptions for delete to authenticated using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 create table if not exists public.push_delivery_log (
   id uuid primary key default gen_random_uuid(),
@@ -163,7 +191,7 @@ alter table public.push_delivery_log enable row level security;
 revoke all on table public.push_delivery_log from anon, authenticated;
 grant select on table public.push_delivery_log to authenticated;
 drop policy if exists "users read own push delivery status" on public.push_delivery_log;
-create policy "users read own push delivery status" on public.push_delivery_log for select to authenticated using ((select auth.uid()) = user_id);
+create policy "users read own push delivery status" on public.push_delivery_log for select to authenticated using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
 create or replace function public.get_due_planner_reminders()
 returns table (item_id uuid, user_id uuid, title text, category text, event_date date, event_time time, due_at timestamptz)
