@@ -113,3 +113,85 @@ drop policy if exists "users delete own planner settings" on public.planner_sett
 create policy "users delete own planner settings"
 on public.planner_settings for delete to authenticated
 using ((select auth.uid()) = user_id);
+
+
+-- Server-scheduled Web Push reminders.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
+alter table public.planner_items
+  add column if not exists remind_before integer not null default 0
+  check (remind_before in (0,10,30,60,1440,10080));
+
+create table if not exists public.push_subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null,
+  p256dh text not null,
+  auth text not null,
+  user_agent text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, endpoint)
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions(user_id);
+alter table public.push_subscriptions enable row level security;
+revoke all on table public.push_subscriptions from anon, authenticated;
+grant select, insert, update, delete on table public.push_subscriptions to authenticated;
+drop policy if exists "users read own push subscriptions" on public.push_subscriptions;
+create policy "users read own push subscriptions" on public.push_subscriptions for select to authenticated using ((select auth.uid()) = user_id);
+drop policy if exists "users insert own push subscriptions" on public.push_subscriptions;
+create policy "users insert own push subscriptions" on public.push_subscriptions for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "users update own push subscriptions" on public.push_subscriptions;
+create policy "users update own push subscriptions" on public.push_subscriptions for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+drop policy if exists "users delete own push subscriptions" on public.push_subscriptions;
+create policy "users delete own push subscriptions" on public.push_subscriptions for delete to authenticated using ((select auth.uid()) = user_id);
+
+create table if not exists public.push_delivery_log (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  item_id uuid not null references public.planner_items(id) on delete cascade,
+  scheduled_for timestamptz not null,
+  delivered_at timestamptz,
+  status text not null default 'queued' check (status in ('queued','sent','failed','skipped')),
+  error text not null default '',
+  created_at timestamptz not null default now(),
+  unique (item_id, scheduled_for)
+);
+create index if not exists push_delivery_log_user_idx on public.push_delivery_log(user_id);
+alter table public.push_delivery_log enable row level security;
+revoke all on table public.push_delivery_log from anon, authenticated;
+grant select on table public.push_delivery_log to authenticated;
+drop policy if exists "users read own push delivery status" on public.push_delivery_log;
+create policy "users read own push delivery status" on public.push_delivery_log for select to authenticated using ((select auth.uid()) = user_id);
+
+create or replace function public.get_due_planner_reminders()
+returns table (item_id uuid, user_id uuid, title text, category text, event_date date, event_time time, due_at timestamptz)
+language sql stable set search_path = ''
+as $$
+  select i.id, i.user_id, i.title, i.category, i.event_date, i.event_time,
+    ((i.event_date::timestamp + coalesce(i.event_time, time '09:00')) at time zone coalesce(s.timezone, 'Asia/Novosibirsk')) - make_interval(mins => i.remind_before)
+  from public.planner_items as i
+  left join public.planner_settings as s on s.user_id = i.user_id
+  where i.done = false and i.remind_before > 0
+    and (((i.event_date::timestamp + coalesce(i.event_time, time '09:00')) at time zone coalesce(s.timezone, 'Asia/Novosibirsk')) - make_interval(mins => i.remind_before)) <= pg_catalog.now()
+    and (((i.event_date::timestamp + coalesce(i.event_time, time '09:00')) at time zone coalesce(s.timezone, 'Asia/Novosibirsk')) - make_interval(mins => i.remind_before)) > pg_catalog.now() - interval '90 seconds'
+$$;
+revoke all on function public.get_due_planner_reminders() from public, anon, authenticated;
+grant execute on function public.get_due_planner_reminders() to service_role;
+
+-- The three values are created in Supabase Vault, never committed to source control.
+-- Names: family-planner-vapid-public, family-planner-vapid-private, family-planner-cron-secret.
+create or replace function public.get_push_runtime_config()
+returns table (public_key text, private_key text, cron_secret text)
+language sql security definer set search_path = ''
+as $$
+  select
+    max(s.decrypted_secret) filter (where s.name = 'family-planner-vapid-public'),
+    max(s.decrypted_secret) filter (where s.name = 'family-planner-vapid-private'),
+    max(s.decrypted_secret) filter (where s.name = 'family-planner-cron-secret')
+  from vault.decrypted_secrets as s
+  where s.name in ('family-planner-vapid-public','family-planner-vapid-private','family-planner-cron-secret')
+$$;
+revoke all on function public.get_push_runtime_config() from public, anon, authenticated;
+grant execute on function public.get_push_runtime_config() to service_role;
