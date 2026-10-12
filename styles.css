@@ -175,3 +175,7 @@ input,select,textarea{font-size:16px} /* Prevent Safari auto-zoom on focus */
  .month-today{font-size:9px;padding:6px 7px;min-height:32px}
  .calendar-legend{gap:8px 10px;font-size:9px}
 }
+
+.auth-gate{min-height:100dvh;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(ellipse at 10% 0%,rgba(225,237,220,.55),transparent 34rem),var(--cream)}
+.auth-card{width:min(440px,100%);padding:clamp(24px,5vw,38px);background:#fff;border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow)}
+.auth-mark{margin-bottom:24px}.auth-card h1{font-size:clamp(32px,8vw,42px);margin:12px 0}.auth-card h1 em{font-family:Georgia,'Times New Roman',serif;color:var(--green-2);font-weight:500}.auth-card form{margin-top:20px}.auth-card label{display:block;font-size:12px;font-weight:600;margin:14px 0}.auth-status{min-height:32px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:15px}.push-panel{padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff;margin:14px 0}.push-panel h3{margin:0;font-size:14px}.push-panel .muted{margin:7px 0 12px;font-size:12px}.push-panel button{width:100%}
