@@ -13,21 +13,26 @@ create table if not exists private.planner_allowed_users (
 );
 revoke all on table private.planner_allowed_users from public, anon, authenticated;
 grant select, insert, update, delete on table private.planner_allowed_users to service_role;
+alter table private.planner_allowed_users enable row level security;
+grant usage on schema private to authenticated;
+grant select on table private.planner_allowed_users to authenticated;
+drop policy if exists "users check own planner allowlist" on private.planner_allowed_users;
+create policy "users check own planner allowlist" on private.planner_allowed_users for select to authenticated using ((select auth.uid()) = user_id);
 create or replace function public.is_planner_allowed_user()
-returns boolean language sql stable security definer set search_path = ''
-as $
+returns boolean language sql stable set search_path = ''
+as $$
   select exists (select 1 from private.planner_allowed_users as allowed where allowed.user_id = auth.uid())
-$;
+$$;
 revoke all on function public.is_planner_allowed_user() from public, anon;
 grant execute on function public.is_planner_allowed_user() to authenticated, service_role;
 create or replace function public.allow_planner_user(p_user_id uuid)
 returns void language plpgsql security definer set search_path = ''
-as $
+as $$
 begin
   if p_user_id is null then raise exception 'user id required'; end if;
   insert into private.planner_allowed_users(user_id) values (p_user_id) on conflict (user_id) do nothing;
 end;
-$;
+$$;
 revoke all on function public.allow_planner_user(uuid) from public, anon, authenticated;
 grant execute on function public.allow_planner_user(uuid) to service_role;
 
@@ -171,7 +176,7 @@ create policy "users read own push subscriptions" on public.push_subscriptions f
 drop policy if exists "users insert own push subscriptions" on public.push_subscriptions;
 create policy "users insert own push subscriptions" on public.push_subscriptions for insert to authenticated with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 drop policy if exists "users update own push subscriptions" on public.push_subscriptions;
-create policy "users update own push subscriptions" on public.push_subscriptions for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
+create policy "users update own push subscriptions" on public.push_subscriptions for update to authenticated using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user())) with check ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 drop policy if exists "users delete own push subscriptions" on public.push_subscriptions;
 create policy "users delete own push subscriptions" on public.push_subscriptions for delete to authenticated using ((select auth.uid()) = user_id and (select public.is_planner_allowed_user()));
 
