@@ -80,7 +80,7 @@ test('events can be exported as iCalendar files for manual iPhone Calendar impor
 });
 
 test('all multi-element event bindings use querySelectorAll rather than a single element', () => {
-  assert.doesNotMatch(app, /(?<!\$)\$\(['"][^\n]*?\)\.forEach\(/);
+  assert.doesNotMatch(app, /(?<!\$)\$\('[^']*'\)\.forEach\(/);
   assert.match(app, /\$\$\('\.tab'\)\.forEach/);
   assert.match(app, /\$\$\('\[data-month\]'\)\.forEach/);
   assert.match(app, /\$\$\('\[data-date\]'\)\.forEach/);
