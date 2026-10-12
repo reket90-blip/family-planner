@@ -80,12 +80,21 @@ test('events can be exported as iCalendar files for manual iPhone Calendar impor
 });
 
 test('all multi-element event bindings use querySelectorAll rather than a single element', () => {
-  assert.doesNotMatch(app, /(?<!\$)\$\('[^']*'\)\.forEach\(/);
-  assert.match(app, /\$\$\('\.tab'\)\.forEach/);
-  assert.match(app, /\$\$\('\[data-month\]'\)\.forEach/);
-  assert.match(app, /\$\$\('\[data-date\]'\)\.forEach/);
+  const bindingLines = app.split('\\n').filter(line => line.includes('.forEach(') && line.includes('addEventListener'));
+  assert.ok(bindingLines.length > 10, 'expected dynamic and static event bindings');
+  for (const line of bindingLines) assert.match(line, /\\$\\$\\(/, 'multi-element event binding must use querySelectorAll: ' + line);
+  assert.match(app, /\\$\\$\\('\\.tab'\\)\\.forEach/);
+  assert.match(app, /\\$\\$\\('\\[data-month\\]'\\)\\.forEach/);
+  assert.match(app, /\\$\\$\\('\\[data-date\\]'\\)\\.forEach/);
 });
 
+test('event editor can always be dismissed without satisfying required fields', () => {
+  assert.match(html, /id="closeItemDialog" type="button"/);
+  assert.match(html, /data-close-item/);
+  assert.match(app, /itemDialog\.addEventListener\('cancel'/);
+  assert.match(app, /itemDialog\.addEventListener\('close'/);
+  assert.match(app, /if\(event\.target===itemDialog\) itemDialog\.close\(\)/);
+});
 test('dynamic view buttons are scoped to the view container to avoid duplicate navigation listeners', () => {
   assert.match(app, /\$\$\('\[data-view\]', \$\('#view'\)\)\.forEach/);
 });
