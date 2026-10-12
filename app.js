@@ -44,14 +44,14 @@
   function validBackup(data) {
     if (!data || data.format !== 'family-planner-backup' || data.version !== 1 || !Array.isArray(data.items) || !data.settings || typeof data.settings !== 'object') return false;
     if (data.items.length > 10000) return false;
-    return data.items.every(x => x && typeof x === 'object' && typeof x.title === 'string' && x.title.trim().length > 0 && x.title.length <= 120 && typeof x.date === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(x.date) && (!x.category || Object.hasOwn(categories, x.category)));
+    return data.items.every(x => x && typeof x === 'object' && typeof x.title === 'string' && x.title.trim().length > 0 && x.title.length <= 120 && typeof x.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x.date) && (!x.category || Object.hasOwn(categories, x.category)));
   }
   function exportBackup() {
     const data = {format:'family-planner-backup',version:1,exportedAt:new Date().toISOString(),items,settings};
     const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url; a.download='family-planner-backup-'+today()+'.json';
-    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1000);
     $('#saveStatus').textContent = 'Резервная копия подготовлена';
   }
   async function importBackup(file) {
@@ -63,10 +63,10 @@
       items = data.items.map(x => ({
         id: safeText(x.id,100) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()),
         title: x.title.trim(), category: Object.hasOwn(categories,x.category) ? x.category : 'task',
-        date: x.date, time: /^\\d{2}:\\d{2}$/.test(x.time || '') ? x.time : '',
+        date: x.date, time: /^\d{2}:\d{2}$/.test(x.time || '') ? x.time : '',
         notes: safeText(x.notes,500), done: x.done === true, createdAt: safeText(x.createdAt,50)
       }));
-      settings = {pregnancyStart:/^\\d{4}-\\d{2}-\\d{2}$/.test(data.settings.pregnancyStart || '') ? data.settings.pregnancyStart : '',dueDate:/^\\d{4}-\\d{2}-\\d{2}$/.test(data.settings.dueDate || '') ? data.settings.dueDate : ''};
+      settings = {pregnancyStart:/^\d{4}-\d{2}-\d{2}$/.test(data.settings.pregnancyStart || '') ? data.settings.pregnancyStart : '',dueDate:/^\d{4}-\d{2}-\d{2}$/.test(data.settings.dueDate || '') ? data.settings.dueDate : ''};
       saveItems(); saveSettings(); $('#settingsDialog').close(); render();
       $('#saveStatus').textContent = 'Резервная копия восстановлена';
     } catch { alert('Файл повреждён или имеет неверный формат. Данные не изменены.'); }
