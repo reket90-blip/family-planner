@@ -46,3 +46,15 @@ footer{gap:6px;padding:22px 3px max(12px,env(safe-area-inset-bottom))}dialog{wid
 }
 @media(max-width:370px){.app-shell{padding-left:10px;padding-right:10px}.welcome{padding:18px 15px}.welcome h1{font-size:30px}.leaf-art{font-size:42px}.tab{padding:9px 10px}.stat{padding:12px 9px}.stat-label{font-size:8px}.event-actions .icon-button{width:26px}.event-item{gap:7px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.leaf-art{animation:none}*,*::before,*::after{transition:none!important;animation:none!important}}
+
+/* Category cues keep dense days scannable without overpowering the calm palette */
+.event-item.category-family .event-date{background:linear-gradient(145deg,#f9eceb,#f4e2e1);color:#a65f65}
+.event-item.category-clinic .event-date{background:linear-gradient(145deg,#f1eafa,#e9def5);color:#765b91}
+.event-item.category-payment .event-date{background:linear-gradient(145deg,#fbf2df,#f5e7c8);color:#98702e}
+.event-item.category-meter .event-date{background:linear-gradient(145deg,#e5f3f4,#d8ebed);color:#397b82}
+.event-item.category-reminder .event-date{background:linear-gradient(145deg,#f0eaf8,#e6ddf2);color:#775e94}
+.event-item.category-family{border-left:3px solid #d98d91}
+.event-item.category-clinic{border-left:3px solid #b59bce}
+.event-item.category-payment{border-left:3px solid #dfbd76}
+.event-item.category-meter{border-left:3px solid #8bc3c7}
+.event-item.category-reminder{border-left:3px solid #b59bce}
