@@ -51,3 +51,13 @@ test('mobile settings offer explicit backup and local data deletion controls', (
   assert.match(css, /@media\(max-width:430px\)/);
   assert.match(css, /env\(safe-area-inset-bottom\)/);
 });
+
+test('production build publishes only the PWA shell and icons', () => {
+  const dist = path.join(__dirname, '..', 'dist');
+  for (const file of ['index.html', 'styles.css', 'app.js', 'sw.js', 'manifest.webmanifest']) {
+    assert.ok(fs.existsSync(path.join(dist, file)), 'missing built asset: ' + file);
+  }
+  assert.ok(fs.existsSync(path.join(dist, 'icons', 'leaf.svg')));
+  assert.equal(fs.existsSync(path.join(dist, 'supabase')), false);
+  assert.equal(fs.existsSync(path.join(dist, 'tests')), false);
+});
