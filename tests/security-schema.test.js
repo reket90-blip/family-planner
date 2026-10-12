@@ -105,14 +105,14 @@ test('dynamic view buttons are scoped to the view container to avoid duplicate n
 });
 
 test('push reminders are server-scheduled and the browser only holds a publishable key', () => {
-  assert.match(schema, /add column if not exists remind_before/i);
-  assert.match(schema, /create table if not exists public\\.push_subscriptions/i);
-  assert.match(schema, /create table if not exists public\\.push_delivery_log/i);
-  assert.match(schema, /get_due_planner_reminders/i);
-  assert.match(app, /togglePushNotifications/);
-  assert.match(app, /pushManager\\.subscribe/);
-  assert.match(html, /id="authGate"/);
-  assert.match(html, /id="togglePush"/);
-  assert.match(app, /sb_publishable_/);
+  assert.ok(schema.includes('add column if not exists remind_before'));
+  assert.ok(schema.includes('create table if not exists public.push_subscriptions'));
+  assert.ok(schema.includes('create table if not exists public.push_delivery_log'));
+  assert.ok(schema.includes('get_due_planner_reminders'));
+  assert.ok(app.includes('togglePushNotifications'));
+  assert.ok(app.includes('pushManager.subscribe'));
+  assert.ok(html.includes('id="authGate"'));
+  assert.ok(html.includes('id="togglePush"'));
+  assert.ok(app.includes('sb_publishable_'));
   assert.doesNotMatch(app, /service_role|VAPID_PRIVATE_KEY/i);
 });
