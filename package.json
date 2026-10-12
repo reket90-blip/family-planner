@@ -1,0 +1,13 @@
+{
+  "name": "family-planner-pwa",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Private family calendar PWA",
+  "scripts": {
+    "check": "node --check app.js && node --check sw.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
