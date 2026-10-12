@@ -2,6 +2,16 @@
   'use strict';
   const STORE_KEY = 'family-planner-items-v1';
   const SETTINGS_KEY = 'family-planner-settings-v1';
+  const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_bJPp8as_zZqo5NWVJVacaA_GGkDU86b';
+  const cloud = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+  }) || null;
+  let session = null;
+  let cloudSyncReady = false;
+  let syncingCloud = false;
+  let activeCloudUserId = null;
+  let syncTimer = null;
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const today = () => { const d = new Date(); return localDate(d); };
@@ -29,16 +39,136 @@
     catch { return seed; }
   }
   function saveItems() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(items)); $('#saveStatus').textContent = 'Сохранено на этом устройстве'; }
-    catch { $('#saveStatus').textContent = 'Не удалось сохранить данные'; }
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(items));
+      $('#saveStatus').textContent = cloudSyncReady ? 'Сохранено на устройстве и в облаке' : 'Сохранено на этом устройстве';
+      queueCloudSync();
+    } catch { $('#saveStatus').textContent = 'Не удалось сохранить данные'; }
   }
   function loadSettings() {
     try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return {pregnancyStart:s.pregnancyStart || '', dueDate:s.dueDate || ''}; }
     catch { return {pregnancyStart:'',dueDate:''}; }
   }
   function saveSettings() {
-    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
-    catch { $('#saveStatus').textContent = 'Не удалось сохранить настройки'; }
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      if (cloudSyncReady && session?.user?.id) {
+        cloud.from('planner_settings').upsert({
+          user_id: session.user.id,
+          pregnancy_start: settings.pregnancyStart || null,
+          due_date: settings.dueDate || null,
+          timezone: 'Asia/Novosibirsk',
+          notifications_enabled: Notification.permission === 'granted'
+        }, { onConflict: 'user_id' }).then(({error}) => {
+          if (error) $('#saveStatus').textContent = 'Настройки не синхронизировались';
+        });
+      }
+    } catch { $('#saveStatus').textContent = 'Не удалось сохранить настройки'; }
+  }
+  const isUuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+  function dbItem(item) {
+    if (!isUuid(item.id)) item.id = crypto.randomUUID();
+    return {
+      id: item.id, user_id: session.user.id, title: item.title, category: item.category || 'task',
+      event_date: item.date || today(), event_time: item.time || null, notes: item.notes || '',
+      done: item.done === true, remind_before: Number(item.remindBefore) || 0,
+      created_at: item.createdAt || new Date().toISOString()
+    };
+  }
+  function queueCloudSync() {
+    if (!cloudSyncReady || !session?.user?.id || !cloud) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncItemsToCloud, 350);
+  }
+  async function syncItemsToCloud() {
+    if (!cloudSyncReady || !session?.user?.id || !cloud || syncingCloud) return;
+    const rows = items.map(dbItem);
+    try {
+      if (rows.length) {
+        const { error } = await cloud.from('planner_items').upsert(rows, { onConflict: 'id' });
+        if (error) throw error;
+      }
+      localStorage.setItem(STORE_KEY, JSON.stringify(items));
+      $('#saveStatus').textContent = 'Синхронизировано с облаком';
+    } catch (error) {
+      $('#saveStatus').textContent = 'Нет связи с облаком — проверь интернет';
+      console.error('Planner cloud sync failed', error);
+    }
+  }
+  async function syncFromCloud(nextSession) {
+    if (!cloud || !nextSession?.user?.id || syncingCloud || activeCloudUserId === nextSession.user.id && cloudSyncReady) return;
+    syncingCloud = true;
+    session = nextSession;
+    activeCloudUserId = nextSession.user.id;
+    $('#authGate').classList.add('hidden');
+    $('#appShell').classList.remove('hidden');
+    $('#authStatus').textContent = '';
+    $('#saveStatus').textContent = 'Загружаем защищённые данные…';
+    try {
+      const [itemsResult, settingsResult] = await Promise.all([
+        cloud.from('planner_items').select('*').order('event_date', {ascending:true}),
+        cloud.from('planner_settings').select('*').eq('user_id', session.user.id).maybeSingle()
+      ]);
+      if (itemsResult.error) throw itemsResult.error;
+      if (settingsResult.error) throw settingsResult.error;
+      const localItems = items.map(item => ({...item, id: isUuid(item.id) ? item.id : crypto.randomUUID()}));
+      const remoteItems = (itemsResult.data || []).map(row => ({
+        id: row.id, title: row.title, category: row.category || 'task',
+        date: row.event_date, time: row.event_time ? String(row.event_time).slice(0,5) : '',
+        notes: row.notes || '', done: row.done === true, remindBefore: Number(row.remind_before) || 0,
+        createdAt: row.created_at || ''
+      }));
+      const merged = new Map(remoteItems.map(item => [item.id, item]));
+      for (const item of localItems) merged.set(item.id, item);
+      items = [...merged.values()];
+      if (settingsResult.data) {
+        if (!settings.pregnancyStart) settings.pregnancyStart = settingsResult.data.pregnancy_start || '';
+        if (!settings.dueDate) settings.dueDate = settingsResult.data.due_date || '';
+      }
+      localStorage.setItem(STORE_KEY, JSON.stringify(items));
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      cloudSyncReady = true;
+      await syncItemsToCloud();
+      await cloud.from('planner_settings').upsert({
+        user_id: session.user.id, pregnancy_start: settings.pregnancyStart || null,
+        due_date: settings.dueDate || null, timezone: 'Asia/Novosibirsk',
+        notifications_enabled: Notification.permission === 'granted'
+      }, { onConflict: 'user_id' });
+      render();
+      refreshPushStatus();
+    } catch (error) {
+      cloudSyncReady = false;
+      $('#saveStatus').textContent = 'Не удалось загрузить облачные записи';
+      $('#authStatus').textContent = 'Вход выполнен, но облако пока недоступно. Проверь подключение и обнови страницу.';
+      console.error('Planner initial cloud sync failed', error);
+    } finally {
+      syncingCloud = false;
+    }
+  }
+  function showSignedOut() {
+    session = null;
+    cloudSyncReady = false;
+    syncingCloud = false;
+    activeCloudUserId = null;
+    $('#appShell').classList.add('hidden');
+    $('#authGate').classList.remove('hidden');
+    $('#authPassword').value = '';
+  }
+  async function authLogin(event) {
+    event.preventDefault();
+    if (!cloud) { $('#authStatus').textContent = 'Не загрузился модуль входа. Проверь интернет и обнови страницу.'; return; }
+    const submit = $('#authSubmit');
+    submit.disabled = true;
+    $('#authStatus').textContent = 'Входим…';
+    try {
+      const {data, error} = await cloud.auth.signInWithPassword({
+        email: $('#authEmail').value.trim(), password: $('#authPassword').value
+      });
+      if (error) throw error;
+      await syncFromCloud(data.session);
+    } catch (error) {
+      $('#authStatus').textContent = 'Не удалось войти. Проверь почту и пароль.';
+    } finally { submit.disabled = false; }
   }
   function safeText(value, max = 500) { return typeof value === 'string' ? value.slice(0, max) : ''; }
   function validBackup(data) {
@@ -267,7 +397,10 @@
     $$('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
     $$('[data-delete]').forEach(b=>b.addEventListener('click',()=>{
       const item=items.find(x=>x.id===b.dataset.delete); if(!item)return;
-      if(confirm('Удалить «'+item.title+'»?')){items=items.filter(x=>x.id!==item.id);saveItems();render();}
+      if(confirm('Удалить «'+item.title+'»?')){
+        items=items.filter(x=>x.id!==item.id); saveItems(); render();
+        if (cloudSyncReady && session?.user?.id) cloud.from('planner_items').delete().eq('id', item.id).eq('user_id', session.user.id);
+      }
     }));
     $$('[data-done]').forEach(b=>b.addEventListener('change',()=>{
       const item=items.find(x=>x.id===b.dataset.done);if(item){item.done=b.checked;saveItems();render();}
@@ -307,17 +440,97 @@
     $$('.tab').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');});
     render();window.scrollTo({top:0,behavior:'smooth'});
   }
-  $('#settingsBtn').addEventListener('click',()=>$('#settingsDialog').showModal());
+  $('#settingsBtn').addEventListener('click',()=>{ $('#settingsDialog').showModal(); refreshPushStatus(); });
   $('#closeSettings').addEventListener('click',()=>$('#settingsDialog').close());
   $('#exportBackup').addEventListener('click',exportBackup);
   $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
   $('#backupFile').addEventListener('change',e=>{const file=e.target.files?.[0]; if(file) importBackup(file); e.target.value='';});
+  $('#signOutBtn').addEventListener('click', async () => {
+    if (!confirm('Выйти из личного планера?')) return;
+    if (cloud) await cloud.auth.signOut();
+    showSignedOut();
+  });
+  $('#authForm').addEventListener('submit', authLogin);
+  $('#togglePush').addEventListener('click', togglePushNotifications);
   $('#clearAllData').addEventListener('click',()=>{
     if(!confirm('Удалить все события и настройки с этого устройства? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
     items=[]; settings={pregnancyStart:'',dueDate:''};
     saveItems(); saveSettings(); $('#settingsDialog').close(); render();
     $('#saveStatus').textContent='Локальные записи удалены';
   });
+  async function callPushFunction(payload) {
+    if (!cloud || !session) throw new Error('Нужно войти в планер');
+    const {data, error} = await cloud.functions.invoke('push-notifications', {body: payload});
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  }
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
+  }
+  async function refreshPushStatus() {
+    const status = $('#pushStatus');
+    const button = $('#togglePush');
+    if (!status || !button) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      status.textContent = 'Этот браузер не поддерживает push-уведомления.';
+      button.disabled = true; return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        status.textContent = Notification.permission === 'granted' ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
+        button.textContent = 'Отключить уведомления'; button.disabled = false;
+      } else if (Notification.permission === 'denied') {
+        status.textContent = 'Уведомления запрещены в настройках iPhone. Разреши их в настройках сайта.';
+        button.textContent = 'Разрешить в настройках iPhone'; button.disabled = false;
+      } else {
+        status.textContent = 'Push отправляется сервером по времени события, даже когда планер закрыт.';
+        button.textContent = 'Включить уведомления'; button.disabled = false;
+      }
+    } catch {
+      status.textContent = 'Сначала добавь планер на экран «Домой» и открой его с иконки.';
+      button.disabled = false;
+    }
+  }
+  async function togglePushNotifications() {
+    const button = $('#togglePush');
+    const status = $('#pushStatus');
+    if (!cloud || !session) { status.textContent = 'Сначала войди в планер.'; return; }
+    button.disabled = true;
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+        throw new Error('Этот браузер не поддерживает push-уведомления.');
+      }
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await callPushFunction({action:'unsubscribe', endpoint:existing.endpoint});
+        await existing.unsubscribe();
+        status.textContent = 'Уведомления отключены на этом устройстве.';
+        button.textContent = 'Включить уведомления';
+        return;
+      }
+      const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      if (isIOS && !standalone) throw new Error('На iPhone сначала выбери Safari → Поделиться → На экран «Домой», затем открой планер с иконки.');
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') throw new Error('Разрешение на уведомления не выдано.');
+      const {publicKey} = await callPushFunction({action:'public-key'});
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+      await callPushFunction({action:'subscribe', subscription:subscription.toJSON(), userAgent:navigator.userAgent});
+      status.textContent = 'Готово! Сервер сможет присылать напоминания по событиям.';
+      button.textContent = 'Отключить уведомления';
+    } catch (error) {
+      status.textContent = error?.message || 'Не удалось включить уведомления. Попробуй ещё раз.';
+    } finally { button.disabled = false; }
+  }
   const itemDialog = $('#itemDialog');
   itemDialog.addEventListener('cancel',()=>{ editingId=null; });
   itemDialog.addEventListener('close',()=>{
@@ -347,4 +560,16 @@
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
   render();
+  if (!cloud) {
+    $('#authStatus').textContent = 'Для входа нужен интернет: не удалось загрузить модуль авторизации.';
+  } else {
+    cloud.auth.onAuthStateChange((event, nextSession) => {
+      if (nextSession) { if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession); }
+      else if (event === 'SIGNED_OUT') showSignedOut();
+    });
+    cloud.auth.getSession().then(({data}) => {
+      if (data.session) syncFromCloud(data.session);
+      else showSignedOut();
+    }).catch(() => showSignedOut());
+  }
 })();
