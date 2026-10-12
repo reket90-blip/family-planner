@@ -48,7 +48,7 @@
   }
   function eventRow(item, showDate = true) {
     const cat = categories[item.category] || categories.task;
-    return `<article class="event-item ${item.done ? 'completed' : ''}">
+    return `<article class="event-item category-${esc(item.category || 'task')} ${item.done ? 'completed' : ''}">
       <input class="done-toggle" type="checkbox" data-done="${esc(item.id)}" ${item.done ? 'checked' : ''} aria-label="Отметить выполненным: ${esc(item.title)}">
       ${showDate ? `<div class="event-date"><strong>${esc(parseDate(item.date)?.getDate() || '—')}</strong><span>${esc(fmtDate(item.date,{month:'short'}).replace('.',''))}</span></div>` : ''}
       <div class="event-main"><strong>${esc(item.title)}</strong><div class="event-meta">${esc(itemMeta(item))}</div></div>
