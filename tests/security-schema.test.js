@@ -30,3 +30,24 @@ test('sensitive text fields have server-side length limits', () => {
   assert.match(schema, /char_length\(trim\(title\)\) between 1 and 180/i);
   assert.match(schema, /char_length\(notes\) <= 2000/i);
 });
+
+const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+
+test('local backup import is bounded, validated, and requires confirmation before replacing data', () => {
+  assert.match(app, /function validBackup\(data\)/);
+  assert.match(app, /data\.items\.length > 10000/);
+  assert.match(app, /file\.size > 2 \* 1024 \* 1024/);
+  assert.match(app, /Текущие записи на этом устройстве будут заменены/);
+  assert.match(app, /family-planner-backup/);
+});
+
+test('mobile settings offer explicit backup and local data deletion controls', () => {
+  assert.match(html, /id="settingsDialog"/);
+  assert.match(html, /id="exportBackup"/);
+  assert.match(html, /id="importBackup"/);
+  assert.match(html, /id="clearAllData"/);
+  assert.match(css, /@media\(max-width:430px\)/);
+  assert.match(css, /env\(safe-area-inset-bottom\)/);
+});
