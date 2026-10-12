@@ -10,6 +10,7 @@ test('every private planner table has row-level security enabled', () => {
   assert.match(schema, /alter table public\.planner_settings enable row level security/i);
   assert.match(schema, /alter table public\.push_subscriptions enable row level security/i);
   assert.match(schema, /alter table public\.push_delivery_log enable row level security/i);
+  assert.match(schema, /alter table private\.planner_allowed_users enable row level security/i);
 });
 
 test('all CRUD policies bind access to the authenticated owner', () => {
