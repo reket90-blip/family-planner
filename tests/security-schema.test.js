@@ -8,11 +8,13 @@ const schema = fs.readFileSync(path.join(__dirname, '..', 'supabase', 'schema.sq
 test('every private planner table has row-level security enabled', () => {
   assert.match(schema, /alter table public\.planner_items enable row level security/i);
   assert.match(schema, /alter table public\.planner_settings enable row level security/i);
+  assert.match(schema, /alter table public\.push_subscriptions enable row level security/i);
+  assert.match(schema, /alter table public\.push_delivery_log enable row level security/i);
 });
 
 test('all CRUD policies bind access to the authenticated owner', () => {
   const policies = schema.match(/create policy[\s\S]*?;/gi) || [];
-  assert.equal(policies.length, 8, 'expected SELECT/INSERT/UPDATE/DELETE policies for both tables');
+  assert.equal(policies.length, 13, 'expected owner-only policies for planner, push subscriptions and delivery status');
   for (const policy of policies) {
     assert.match(policy, /to authenticated/i, 'policy must target authenticated role');
     assert.match(policy, /auth\.uid\(\)/i, 'policy must check the signed-in user');
@@ -23,6 +25,8 @@ test('all CRUD policies bind access to the authenticated owner', () => {
 test('anonymous users are not granted table access', () => {
   assert.match(schema, /revoke all on table public\.planner_items from anon, authenticated/i);
   assert.match(schema, /revoke all on table public\.planner_settings from anon, authenticated/i);
+  assert.match(schema, /revoke all on table public\.push_subscriptions from anon, authenticated/i);
+  assert.match(schema, /revoke all on table public\.push_delivery_log from anon, authenticated/i);
   assert.doesNotMatch(schema, /grant\s+[^;]*\bto\s+anon\b/i);
 });
 
@@ -98,4 +102,17 @@ test('event editor cancel controls bypass native validation and close via method
 });
 test('dynamic view buttons are scoped to the view container to avoid duplicate navigation listeners', () => {
   assert.match(app, /\$\$\('\[data-view\]', \$\('#view'\)\)\.forEach/);
+});
+
+test('push reminders are server-scheduled and the browser only holds a publishable key', () => {
+  assert.match(schema, /add column if not exists remind_before/i);
+  assert.match(schema, /create table if not exists public\\.push_subscriptions/i);
+  assert.match(schema, /create table if not exists public\\.push_delivery_log/i);
+  assert.match(schema, /get_due_planner_reminders/i);
+  assert.match(app, /togglePushNotifications/);
+  assert.match(app, /pushManager\\.subscribe/);
+  assert.match(html, /id="authGate"/);
+  assert.match(html, /id="togglePush"/);
+  assert.match(app, /sb_publishable_/);
+  assert.doesNotMatch(app, /service_role|VAPID_PRIVATE_KEY/i);
 });
