@@ -326,7 +326,7 @@
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
     saveItems();$('#itemDialog').close();render();
   });
-  $$$('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+  $('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;$('#installBtn').classList.remove('hidden');});
   $('#installBtn').addEventListener('click',async()=>{
     if(!deferredPrompt){alert('На iPhone открой сайт в Safari, нажми «Поделиться» и выбери «На экран Домой».');return;}
