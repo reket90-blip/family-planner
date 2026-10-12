@@ -84,7 +84,7 @@
     if(item.notes) lines.push('DESCRIPTION:'+icsEscape(item.notes));
     if(item.category) lines.push('CATEGORIES:'+icsEscape(categories[item.category]?.label||item.category));
     lines.push('END:VEVENT','END:VCALENDAR');
-    const blob=new Blob([lines.join('\\r\\n')+'\\r\\n'],{type:'text/calendar;charset=utf-8'});
+    const blob=new Blob([lines.join('\r\n')+'\r\n'],{type:'text/calendar;charset=utf-8'});
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='family-planner-'+date+'.ics';
     document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
     $('#saveStatus').textContent='Файл события подготовлен для календаря iPhone';
