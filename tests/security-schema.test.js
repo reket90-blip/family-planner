@@ -61,3 +61,20 @@ test('production build publishes only the PWA shell and icons', () => {
   assert.equal(fs.existsSync(path.join(dist, 'supabase')), false);
   assert.equal(fs.existsSync(path.join(dist, 'tests')), false);
 });
+
+test('calendar uses Monday-first fixed six-week grid and clear date selection', () => {
+  assert.match(app, /\(first\.getDay\(\)\+6\)%7/);
+  assert.match(app, /for\(let i=0;i<42;i\+\+\)/);
+  assert.match(app, /data-month-today/);
+  assert.match(app, /aria-pressed=/);
+  assert.match(app, /calendar-legend/);
+});
+
+test('events can be exported as iCalendar files for manual iPhone Calendar import', () => {
+  assert.match(app, /function exportCalendarEvent\(id\)/);
+  assert.match(app, /BEGIN:VCALENDAR/);
+  assert.match(app, /DTSTART;VALUE=DATE/);
+  assert.match(app, /data-ics=/);
+  assert.match(html, /id="itemReminder"/);
+  assert.match(app, /remindBefore:Number\(\$\('#itemReminder'\)\.value\)/);
+});
