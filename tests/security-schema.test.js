@@ -85,3 +85,7 @@ test('all multi-element event bindings use querySelectorAll rather than a single
   assert.match(app, /\$\$\('\[data-month\]'\)\.forEach/);
   assert.match(app, /\$\$\('\[data-date\]'\)\.forEach/);
 });
+
+test('dynamic view buttons are scoped to the view container to avoid duplicate navigation listeners', () => {
+  assert.match(app, /\$\$\('\[data-view\]', \$\('#view'\)\)\.forEach/);
+});
