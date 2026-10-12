@@ -95,7 +95,8 @@
     return sortedItems(items.filter(x => !x.done && x.date >= today() && x.date <= end));
   }
   function itemMeta(item) {
-    const bits = [categories[item.category]?.label || 'Дело', item.time || '', item.notes || ''].filter(Boolean);
+    const reminderLabels={10:'за 10 мин',30:'за 30 мин',60:'за 1 час',1440:'за 1 день',10080:'за 1 неделю'};
+    const bits = [categories[item.category]?.label || 'Дело', item.time || '', item.remindBefore ? 'Напомнить '+(reminderLabels[item.remindBefore]||'заранее') : '', item.notes || ''].filter(Boolean);
     return bits.join(' · ');
   }
   function eventRow(item, showDate = true) {
