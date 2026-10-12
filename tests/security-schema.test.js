@@ -19,7 +19,7 @@ test('all CRUD policies bind access to the authenticated owner', () => {
     assert.match(policy, /to authenticated/i, 'policy must target authenticated role');
     assert.match(policy, /auth\.uid\(\)/i, 'policy must check the signed-in user');
   }
-  assert.match(schema, /with check\s*\(\s*\(select auth\.uid\(\)\)\s*=\s*user_id\s*\)/i);
+  assert.match(schema, /with check\s*\(\s*\(select auth\.uid\(\)\)\s*=\s*user_id\s+and\s+\(select public\.is_planner_allowed_user\(\)\)\s*\)/i);
 });
 
 test('anonymous users are not granted table access', () => {
@@ -109,6 +109,8 @@ test('push reminders are server-scheduled and the browser only holds a publishab
   assert.ok(schema.includes('create table if not exists public.push_subscriptions'));
   assert.ok(schema.includes('create table if not exists public.push_delivery_log'));
   assert.ok(schema.includes('get_due_planner_reminders'));
+  assert.ok(schema.includes('private.planner_allowed_users'));
+  assert.ok(schema.includes('public.is_planner_allowed_user()'));
   assert.ok(app.includes('togglePushNotifications'));
   assert.ok(app.includes('pushManager.subscribe'));
   assert.ok(html.includes('id="authGate"'));
