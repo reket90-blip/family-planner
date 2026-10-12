@@ -318,13 +318,24 @@
     saveItems(); saveSettings(); $('#settingsDialog').close(); render();
     $('#saveStatus').textContent='Локальные записи удалены';
   });
+  const itemDialog = $('#itemDialog');
+  $('#closeItemDialog').addEventListener('click',()=>itemDialog.close());
+  $('[data-close-item]').forEach(button=>button.addEventListener('click',()=>itemDialog.close()));
+  itemDialog.addEventListener('cancel',()=>{ editingId=null; });
+  itemDialog.addEventListener('close',()=>{
+    editingId=null;
+    $('#itemForm').reset();
+  });
+  itemDialog.addEventListener('click',event=>{
+    if(event.target===itemDialog) itemDialog.close();
+  });
   $('#itemForm').addEventListener('submit',e=>{
     e.preventDefault();
     const title=$('#itemTitle').value.trim();if(!title)return;
     const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,notes:$('#itemNotes').value.trim(),remindBefore:Number($('#itemReminder').value)||0};
     if(editingId) { const old=items.find(x=>x.id===editingId); if(old)Object.assign(old,payload); }
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
-    saveItems();$('#itemDialog').close();render();
+    saveItems();editingId=null;itemDialog.close();render();
   });
   $$('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;$('#installBtn').classList.remove('hidden');});
