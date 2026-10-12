@@ -111,6 +111,7 @@ test('push reminders are server-scheduled and the browser only holds a publishab
   assert.ok(schema.includes('get_due_planner_reminders'));
   assert.ok(schema.includes('private.planner_allowed_users'));
   assert.ok(schema.includes('public.is_planner_allowed_user()'));
+  assert.match(app, /cloud\.rpc\('is_planner_allowed_user'\)/);
   assert.ok(app.includes('togglePushNotifications'));
   assert.ok(app.includes('pushManager.subscribe'));
   assert.ok(html.includes('id="authGate"'));
