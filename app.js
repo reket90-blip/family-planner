@@ -105,6 +105,14 @@
     $('#authStatus').textContent = '';
     $('#saveStatus').textContent = 'Загружаем защищённые данные…';
     try {
+      const { data: allowed, error: allowError } = await cloud.rpc('is_planner_allowed_user');
+      if (allowError) throw allowError;
+      if (allowed !== true) {
+        $('#authStatus').textContent = 'Этот аккаунт не приглашён в личный планер.';
+        await cloud.auth.signOut();
+        showSignedOut();
+        return;
+      }
       const [itemsResult, settingsResult] = await Promise.all([
         cloud.from('planner_items').select('*').order('event_date', {ascending:true}),
         cloud.from('planner_settings').select('*').eq('user_id', session.user.id).maybeSingle()
