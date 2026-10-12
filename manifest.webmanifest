@@ -1,0 +1,17 @@
+{
+  "id": "./",
+  "name": "Наш семейный планер",
+  "short_name": "Наш планер",
+  "description": "Семейный календарь, дела, платежи и календарь беременности",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f7f0",
+  "theme_color": "#245b45",
+  "icons": [
+    {"src": "./icons/leaf.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "./icons/apple-touch-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+  ]
+}
