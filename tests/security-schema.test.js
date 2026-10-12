@@ -15,7 +15,7 @@ test('every private planner table has row-level security enabled', () => {
 
 test('all CRUD policies bind access to the authenticated owner', () => {
   const policies = schema.match(/create policy[\s\S]*?;/gi) || [];
-  assert.equal(policies.length, 13, 'expected owner-only policies for planner, push subscriptions and delivery status');
+  assert.equal(policies.length, 14, 'expected owner-only policies for planner, push subscriptions, delivery status and allowlist');
   for (const policy of policies) {
     assert.match(policy, /to authenticated/i, 'policy must target authenticated role');
     assert.match(policy, /auth\.uid\(\)/i, 'policy must check the signed-in user');
