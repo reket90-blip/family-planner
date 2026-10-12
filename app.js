@@ -262,7 +262,7 @@
     $$('[data-add-category]').forEach(b=>b.addEventListener('click',()=>addItem(b.dataset.addCategory)));
     $$('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
     $$('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
-    $$('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+    $('[data-view]', $('#view')).forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
     $$('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
     $$('[data-delete]').forEach(b=>b.addEventListener('click',()=>{
