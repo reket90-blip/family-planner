@@ -108,3 +108,8 @@ with check ((select auth.uid()) = user_id);
 
 -- No anonymous policies or grants. Keep sign-up disabled in Auth and create the
 -- spouse's account explicitly in the Supabase dashboard before enabling cloud sync.
+
+drop policy if exists "users delete own planner settings" on public.planner_settings;
+create policy "users delete own planner settings"
+on public.planner_settings for delete to authenticated
+using ((select auth.uid()) = user_id);
