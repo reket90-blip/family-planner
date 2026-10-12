@@ -320,7 +320,7 @@
   });
   const itemDialog = $('#itemDialog');
   $('#closeItemDialog').addEventListener('click',()=>itemDialog.close());
-  $('[data-close-item]').forEach(button=>button.addEventListener('click',()=>itemDialog.close()));
+  $$('[data-close-item]').forEach(button=>button.addEventListener('click',()=>itemDialog.close()));
   itemDialog.addEventListener('cancel',()=>{ editingId=null; });
   itemDialog.addEventListener('close',()=>{
     editingId=null;
