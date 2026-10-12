@@ -12,7 +12,21 @@
   <title>Наш планер</title>
 </head>
 <body>
-  <div class="app-shell">
+  <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
+    <div class="auth-card">
+      <div class="brand-mark auth-mark" aria-hidden="true">✿</div>
+      <p class="eyebrow">ЛИЧНОЕ ПРОСТРАНСТВО</p>
+      <h1 id="authTitle">Твой планер,<br><em>всё под рукой.</em></h1>
+      <p class="muted">Войди, чтобы открыть календарь и получать напоминания. Доступ выдаётся только владельцу аккаунта.</p>
+      <form id="authForm">
+        <label>Электронная почта<input id="authEmail" type="email" autocomplete="username" required placeholder="name@example.com"></label>
+        <label>Пароль<input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Пароль"></label>
+        <button class="button button-primary" id="authSubmit" type="submit" style="width:100%">Войти в планер</button>
+      </form>
+      <p id="authStatus" class="auth-status" role="status" aria-live="polite">Регистрация закрыта. Если аккаунт ещё не создан, его нужно добавить в панели управления.</p>
+    </div>
+  </section>
+  <div class="app-shell hidden" id="appShell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="Наш планер — главная"><span class="brand-mark">✿</span><span><b>Наш планер</b><small>дом, семья и маленькие радости</small></span></a>
       <div class="topbar-actions"><button id="settingsBtn" class="icon-button settings-trigger" type="button" aria-label="Настройки и резервная копия" title="Настройки">⚙</button><button id="installBtn" class="button button-soft hidden" type="button">Установить</button></div>
@@ -50,15 +64,24 @@
   </dialog>
   <dialog id="settingsDialog" aria-labelledby="settingsTitle">
     <div class="dialog-head"><h2 id="settingsTitle">Настройки и данные</h2><button class="icon-button" id="closeSettings" type="button" aria-label="Закрыть">✕</button></div>
-    <p class="muted settings-intro">Планер пока хранит записи только в этом браузере. Резервная копия поможет перенести их вручную на другое устройство.</p>
+    <p class="muted settings-intro">Записи синхронизируются с защищённым облаком. Доступ к ним есть только у аккаунта, под которым выполнен вход.</p>
+    <div class="push-panel">
+      <h3>Push-уведомления</h3>
+      <p id="pushStatus" class="muted">Проверяем состояние уведомлений…</p>
+      <button class="button button-primary" id="togglePush" type="button">Включить уведомления</button>
+    </div>
+    <div class="settings-actions" style="margin-top:14px">
+      <button class="button button-soft" id="signOutBtn" type="button">Выйти из аккаунта</button>
+    </div>
     <div class="settings-actions">
       <button class="button button-primary" id="exportBackup" type="button">↓ Скачать резервную копию</button>
       <button class="button button-soft" id="importBackup" type="button">↑ Восстановить из копии</button>
       <input id="backupFile" type="file" accept="application/json,.json" hidden>
     </div>
-    <div class="note settings-note">Важно: автоматическая синхронизация между устройствами, вход по аккаунту и push-напоминания пока не подключены. Не храни здесь пароли, полные банковские реквизиты или данные, которыми нельзя делиться.</div>
+    <div class="note settings-note">Для push на iPhone добавь планер на экран «Домой», открой его с иконки и разреши уведомления. События с напоминанием должны быть сохранены в облаке.</div>
     <div class="settings-footer"><button class="text-link danger-link" id="clearAllData" type="button">Удалить все записи с этого устройства</button></div>
   </dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
