@@ -319,8 +319,6 @@
     $('#saveStatus').textContent='Локальные записи удалены';
   });
   const itemDialog = $('#itemDialog');
-  $('#closeItemDialog').addEventListener('click',()=>itemDialog.close());
-  $$('[data-close-item]').forEach(button=>button.addEventListener('click',()=>itemDialog.close()));
   itemDialog.addEventListener('cancel',()=>{ editingId=null; });
   itemDialog.addEventListener('close',()=>{
     editingId=null;
@@ -330,6 +328,8 @@
     if(event.target===itemDialog) itemDialog.close();
   });
   $('#itemForm').addEventListener('submit',e=>{
+    // Cancel buttons bypass validation and let the native method=dialog close the window.
+    if (e.submitter?.hasAttribute('data-cancel-item')) return;
     e.preventDefault();
     const title=$('#itemTitle').value.trim();if(!title)return;
     const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,notes:$('#itemNotes').value.trim(),remindBefore:Number($('#itemReminder').value)||0};
