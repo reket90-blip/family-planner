@@ -58,7 +58,7 @@
           pregnancy_start: settings.pregnancyStart || null,
           due_date: settings.dueDate || null,
           timezone: 'Asia/Novosibirsk',
-          notifications_enabled: Notification.permission === 'granted'
+          notifications_enabled: (typeof Notification !== 'undefined' && Notification.permission === 'granted')
         }, { onConflict: 'user_id' }).then(({error}) => {
           if (error) $('#saveStatus').textContent = 'Настройки не синхронизировались';
         });
@@ -132,7 +132,7 @@
       await cloud.from('planner_settings').upsert({
         user_id: session.user.id, pregnancy_start: settings.pregnancyStart || null,
         due_date: settings.dueDate || null, timezone: 'Asia/Novosibirsk',
-        notifications_enabled: Notification.permission === 'granted'
+        notifications_enabled: (typeof Notification !== 'undefined' && Notification.permission === 'granted')
       }, { onConflict: 'user_id' });
       render();
       refreshPushStatus();
@@ -324,7 +324,7 @@
       <div class="stats">
         <div class="panel stat"><div class="stat-label">Неоплаченные напоминания</div><div class="stat-number">${payments.length}</div><div class="stat-note">Отмечай после оплаты</div></div>
         <div class="panel stat"><div class="stat-label">Счётчики</div><div class="stat-number">${meters.length}</div><div class="stat-note">Ожидают внимания</div></div>
-        <div class="panel stat"><div class="stat-label">Всего записей</div><div class="stat-number">${homeItems.length}</div><div class="stat-note">История в этом браузере</div></div>
+        <div class="panel stat"><div class="stat-label">Всего записей</div><div class="stat-number">${homeItems.length}</div><div class="stat-note">История личных записей</div></div>
       </div>
       <div class="content-grid">
         ${card('Платежи',payments.length? `<div class="item-list">${payments.map(x=>eventRow(x,true)).join('')}</div>`:emptyState('Все спокойно','Добавь напоминание об аренде или ЖКХ.'),'<button class="text-link" data-add-category="payment">＋ Платёж</button>')}
@@ -349,7 +349,7 @@
         <section class="pregnancy-hero">
           <span class="tag">Личный календарь</span>
           ${info ? `<div class="big-week">${info.week} недель ${info.day} дн.</div><h2>${info.week<13?'Первый триместр':info.week<28?'Второй триместр':'Третий триместр'}</h2><p class="muted">Ориентировочная дата родов: <b>${esc(fmtDate(localDate(info.due),{day:'numeric',month:'long',year:'numeric'}))}</b></p><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,info.days/280*100))}%"></div></div><div class="event-meta">Примерно ${Math.max(0,280-info.days)} дней до ПДР по расчёту</div>` : `<h2>Ваш календарь начинается здесь</h2><p class="muted">Укажи первый день последней менструации или предполагаемую дату родов. Расчёт приблизительный.</p>`}
-          <div class="note" style="margin-top:20px">Это календарный ориентир, а не медицинская рекомендация. Сроки и обследования лучше уточнять у врача. Данные пока сохраняются только в этом браузере.</div>
+          <div class="note" style="margin-top:20px">Это календарный ориентир, а не медицинская рекомендация. Сроки и обследования лучше уточнять у врача. Данные сохраняются в защищённом облаке вашего аккаунта.</div>
         </section>
         <section class="panel section-card">
           <h3 style="margin:0 0 8px">Настройки срока</h3>
@@ -483,7 +483,7 @@
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
-        status.textContent = Notification.permission === 'granted' ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
+        status.textContent = (typeof Notification !== 'undefined' && Notification.permission === 'granted') ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
         button.textContent = 'Отключить уведомления'; button.disabled = false;
       } else if (Notification.permission === 'denied') {
         status.textContent = 'Уведомления запрещены в настройках iPhone. Разреши их в настройках сайта.';
