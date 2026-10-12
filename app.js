@@ -71,6 +71,24 @@
       $('#saveStatus').textContent = 'Резервная копия восстановлена';
     } catch { alert('Файл повреждён или имеет неверный формат. Данные не изменены.'); }
   }
+  function icsEscape(value) { return String(value||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;'); }
+  function exportCalendarEvent(id) {
+    const item=items.find(x=>x.id===id); if(!item) return;
+    const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+    const date=(item.date||today()).replace(/-/g,'');
+    const start=item.time ? date+'T'+item.time.replace(':','')+'00' : date;
+    const end=item.time ? (()=>{const d=parseDate(item.date);const [h,m]=item.time.split(':').map(Number);d.setHours(h,m+30,0,0);return localDate(d).replace(/-/g,'')+'T'+String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+'00';})() : '';
+    const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Family Planner//RU','CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT','UID:'+icsEscape(item.id)+'@family-planner.local','DTSTAMP:'+stamp];
+    if(item.time){lines.push('DTSTART:'+start,'DTEND:'+end);}else{const next=shiftDate(item.date||today(),1).replace(/-/g,'');lines.push('DTSTART;VALUE=DATE:'+date,'DTEND;VALUE=DATE:'+next);}
+    lines.push('SUMMARY:'+icsEscape(item.title));
+    if(item.notes) lines.push('DESCRIPTION:'+icsEscape(item.notes));
+    if(item.category) lines.push('CATEGORIES:'+icsEscape(categories[item.category]?.label||item.category));
+    lines.push('END:VEVENT','END:VCALENDAR');
+    const blob=new Blob([lines.join('\\r\\n')+'\\r\\n'],{type:'text/calendar;charset=utf-8'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='family-planner-'+date+'.ics';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);
+    $('#saveStatus').textContent='Файл события подготовлен для календаря iPhone';
+  }
   function sortedItems(list = items) { return [...list].sort((a,b) => (a.date || '').localeCompare(b.date || '') || (a.time || '99:99').localeCompare(b.time || '99:99') || a.title.localeCompare(b.title,'ru')); }
   function upcoming(days = 30) {
     const end = shiftDate(today(), days);
@@ -86,7 +104,7 @@
       <input class="done-toggle" type="checkbox" data-done="${esc(item.id)}" ${item.done ? 'checked' : ''} aria-label="Отметить выполненным: ${esc(item.title)}">
       ${showDate ? `<div class="event-date"><strong>${esc(parseDate(item.date)?.getDate() || '—')}</strong><span>${esc(fmtDate(item.date,{month:'short'}).replace('.',''))}</span></div>` : ''}
       <div class="event-main"><strong>${esc(item.title)}</strong><div class="event-meta">${esc(itemMeta(item))}</div></div>
-      <div class="event-actions"><button class="icon-button" data-edit="${esc(item.id)}" aria-label="Изменить">✎</button><button class="icon-button" data-delete="${esc(item.id)}" aria-label="Удалить">×</button></div>
+      <div class="event-actions"><button class="icon-button" data-ics="${esc(item.id)}" aria-label="Добавить в календарь iPhone" title="Экспорт в календарь iPhone">▦</button><button class="icon-button" data-edit="${esc(item.id)}" aria-label="Изменить">✎</button><button class="icon-button" data-delete="${esc(item.id)}" aria-label="Удалить">×</button></div>
     </article>`;
   }
   function emptyState(title = 'Пока здесь спокойно', text = 'Добавь событие — и оно появится здесь.') {
@@ -145,19 +163,21 @@
       else if(i>=offset+count){date=localDate(new Date(year,month+1,i-offset-count+1,12));muted=true;}
       else date=localDate(new Date(year,month,i-offset+1,12));
       const dayItems = items.filter(x=>x.date===date);
-      cells.push(`<button class="day ${muted?'muted-day':''} ${date===today()?'today':''} ${date===selectedDate?'selected':''}" data-date="${date}" aria-label="${esc(fmtDate(date,{day:'numeric',month:'long',year:'numeric'}))}">
-        <span class="day-num">${parseDate(date).getDate()}</span><span class="day-dots">${dayItems.slice(0,4).map(x=>`<i class="dot ${esc(x.category)}"></i>`).join('')}</span></button>`);
+      cells.push(`<button class="day ${muted?'muted-day':''} ${date===today()?'today':''} ${date===selectedDate?'selected':''}" data-date="${date}" aria-pressed="${date===selectedDate?'true':'false'}" aria-label="${esc(fmtDate(date,{day:'numeric',month:'long',year:'numeric'}))}, событий: ${dayItems.length}">
+        <span class="day-num">${parseDate(date).getDate()}</span><span class="day-dots">${dayItems.slice(0,4).map(x=>`<i class="dot ${esc(x.category)}" title="${esc(categories[x.category]?.label||'Событие')}"></i>`).join('')}${dayItems.length>4?`<small class="more-dots">+${dayItems.length-4}</small>`:''}</span></button>`);
     }
     const chosen = sortedItems(items.filter(x=>x.date===selectedDate));
+    const monthLabel = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(calendarMonth);
+    const monthItems = items.filter(x=>x.date && x.date.startsWith(year+'-'+String(month+1).padStart(2,'0')+'-')).length;
     return `${head('Календарь','Месяц, планы и важные даты')}
       <section class="panel section-card">
-        <div class="month-bar"><button class="icon-button" data-month="-1" aria-label="Предыдущий месяц">←</button><h3>${esc(new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(calendarMonth))}</h3><button class="icon-button" data-month="1" aria-label="Следующий месяц">→</button></div>
+        <div class="month-bar"><button class="icon-button" data-month="-1" aria-label="Предыдущий месяц">←</button><div class="month-heading"><h3>${esc(monthLabel)}</h3><small>${monthItems} ${monthItems===1?'событие':monthItems>1&&monthItems<5?'события':'событий'}</small></div><button class="button button-soft month-today" data-month-today type="button">Сегодня</button><button class="icon-button" data-month="1" aria-label="Следующий месяц">→</button></div>
         <div class="month-grid">${['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(x=>`<div class="weekday">${x}</div>`).join('')}${cells.join('')}</div>
         <div class="calendar-detail divider"></div>
         <div class="section-top"><h3>${esc(fmtDate(selectedDate,{day:'numeric',month:'long'}))}</h3><button class="text-link" data-add-date="${selectedDate}">＋ Добавить сюда</button></div>
         ${chosen.length ? `<div class="item-list">${chosen.map(x=>eventRow(x,false)).join('')}</div>` : emptyState('На эту дату пока ничего нет','Выбери день в календаре или добавь событие.')}
       </section>
-      <p class="event-meta" style="margin:12px 4px">Метки: <span class="dot family" style="display:inline-block"></span> семья · <span class="dot clinic" style="display:inline-block"></span> врач · <span class="dot payment" style="display:inline-block"></span> платежи</p>`;
+      <div class="calendar-legend" aria-label="Цвета событий"><span><i class="dot family"></i> Семья</span><span><i class="dot clinic"></i> Врач</span><span><i class="dot payment"></i> Платёж</span><span><i class="dot meter"></i> Счётчик</span><span><i class="dot reminder"></i> Напоминание</span><span><i class="dot task"></i> Дело</span></div>`;
   }
   function renderTasks() {
     const list = sortedItems(items.filter(x => filter==='all' || (filter==='open' && !x.done) || (filter==='done' && x.done) || x.category===filter));
@@ -219,7 +239,7 @@
     $('#itemForm').reset();
     $('#dialogTitle').textContent = 'Добавить событие';
     $('#itemCategory').value = categories[category] ? category : 'task';
-    $('#itemDate').value = date || today();
+    $('#itemDate').value = date || today(); $('#itemReminder').value = '0';
     $('#saveItemBtn').textContent = 'Сохранить';
     $('#itemDialog').showModal();
     $('#itemTitle').focus();
@@ -232,7 +252,7 @@
     $('#itemCategory').value = item.category || 'task';
     $('#itemDate').value = item.date || today();
     $('#itemTime').value = item.time || '';
-    $('#itemNotes').value = item.notes || '';
+    $('#itemNotes').value = item.notes || ''; $('#itemReminder').value = String(item.remindBefore ?? '0');
     $('#saveItemBtn').textContent = 'Сохранить изменения';
     $('#itemDialog').showModal();
   }
@@ -242,7 +262,8 @@
     $$('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
     $$('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
     $$('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
-    $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
+    $('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
+    $('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
     $$('[data-delete]').forEach(b=>b.addEventListener('click',()=>{
       const item=items.find(x=>x.id===b.dataset.delete); if(!item)return;
       if(confirm('Удалить «'+item.title+'»?')){items=items.filter(x=>x.id!==item.id);saveItems();render();}
@@ -250,8 +271,15 @@
     $$('[data-done]').forEach(b=>b.addEventListener('change',()=>{
       const item=items.find(x=>x.id===b.dataset.done);if(item){item.done=b.checked;saveItems();render();}
     }));
-    $$('[data-month]').forEach(b=>b.addEventListener('click',()=>{
-      calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+Number(b.dataset.month),1);render();
+    $('[data-month]').forEach(b=>b.addEventListener('click',()=>{
+      const next = new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+Number(b.dataset.month),1);
+      calendarMonth=next;
+      const selected=parseDate(selectedDate);
+      if(!selected || selected.getFullYear()!==next.getFullYear() || selected.getMonth()!==next.getMonth()) selectedDate=localDate(next);
+      render();
+    }));
+    $('[data-month-today]').forEach(b=>b.addEventListener('click',()=>{
+      const now=parseDate(today());calendarMonth=new Date(now.getFullYear(),now.getMonth(),1);selectedDate=today();render();
     }));
     $$('[data-date]').forEach(b=>b.addEventListener('click',()=>{
       selectedDate=b.dataset.date;
@@ -292,7 +320,7 @@
   $('#itemForm').addEventListener('submit',e=>{
     e.preventDefault();
     const title=$('#itemTitle').value.trim();if(!title)return;
-    const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,notes:$('#itemNotes').value.trim()};
+    const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,notes:$('#itemNotes').value.trim(),remindBefore:Number($('#itemReminder').value)||0};
     if(editingId) { const old=items.find(x=>x.id===editingId); if(old)Object.assign(old,payload); }
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
     saveItems();$('#itemDialog').close();render();
