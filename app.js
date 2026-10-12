@@ -36,7 +36,41 @@
     try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}'); return {pregnancyStart:s.pregnancyStart || '', dueDate:s.dueDate || ''}; }
     catch { return {pregnancyStart:'',dueDate:''}; }
   }
-  function saveSettings() { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+  function saveSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); }
+    catch { $('#saveStatus').textContent = 'Не удалось сохранить настройки'; }
+  }
+  function safeText(value, max = 500) { return typeof value === 'string' ? value.slice(0, max) : ''; }
+  function validBackup(data) {
+    if (!data || data.format !== 'family-planner-backup' || data.version !== 1 || !Array.isArray(data.items) || !data.settings || typeof data.settings !== 'object') return false;
+    if (data.items.length > 10000) return false;
+    return data.items.every(x => x && typeof x === 'object' && typeof x.title === 'string' && x.title.trim().length > 0 && x.title.length <= 120 && typeof x.date === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(x.date) && (!x.category || Object.hasOwn(categories, x.category)));
+  }
+  function exportBackup() {
+    const data = {format:'family-planner-backup',version:1,exportedAt:new Date().toISOString(),items,settings};
+    const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='family-planner-backup-'+today()+'.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    $('#saveStatus').textContent = 'Резервная копия подготовлена';
+  }
+  async function importBackup(file) {
+    if (!file || file.size > 2 * 1024 * 1024) { alert('Файл не выбран или он больше 2 МБ.'); return; }
+    try {
+      const data = JSON.parse(await file.text());
+      if (!validBackup(data)) { alert('Не удалось распознать резервную копию планера. Исходные данные не изменены.'); return; }
+      if (!confirm('Восстановить '+data.items.length+' записей из копии? Текущие записи на этом устройстве будут заменены.')) return;
+      items = data.items.map(x => ({
+        id: safeText(x.id,100) || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+Math.random()),
+        title: x.title.trim(), category: Object.hasOwn(categories,x.category) ? x.category : 'task',
+        date: x.date, time: /^\\d{2}:\\d{2}$/.test(x.time || '') ? x.time : '',
+        notes: safeText(x.notes,500), done: x.done === true, createdAt: safeText(x.createdAt,50)
+      }));
+      settings = {pregnancyStart:/^\\d{4}-\\d{2}-\\d{2}$/.test(data.settings.pregnancyStart || '') ? data.settings.pregnancyStart : '',dueDate:/^\\d{4}-\\d{2}-\\d{2}$/.test(data.settings.dueDate || '') ? data.settings.dueDate : ''};
+      saveItems(); saveSettings(); $('#settingsDialog').close(); render();
+      $('#saveStatus').textContent = 'Резервная копия восстановлена';
+    } catch { alert('Файл повреждён или имеет неверный формат. Данные не изменены.'); }
+  }
   function sortedItems(list = items) { return [...list].sort((a,b) => (a.date || '').localeCompare(b.date || '') || (a.time || '99:99').localeCompare(b.time || '99:99') || a.title.localeCompare(b.title,'ru')); }
   function upcoming(days = 30) {
     const end = shiftDate(today(), days);
@@ -241,9 +275,20 @@
   function setView(view) {
     if(!['today','calendar','tasks','home','pregnancy'].includes(view))return;
     currentView=view;
-    $$('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+    $('.tab').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');});
     render();window.scrollTo({top:0,behavior:'smooth'});
   }
+  $('#settingsBtn').addEventListener('click',()=>$('#settingsDialog').showModal());
+  $('#closeSettings').addEventListener('click',()=>$('#settingsDialog').close());
+  $('#exportBackup').addEventListener('click',exportBackup);
+  $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
+  $('#backupFile').addEventListener('change',e=>{const file=e.target.files?.[0]; if(file) importBackup(file); e.target.value='';});
+  $('#clearAllData').addEventListener('click',()=>{
+    if(!confirm('Удалить все события и настройки с этого устройства? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
+    items=[]; settings={pregnancyStart:'',dueDate:''};
+    saveItems(); saveSettings(); $('#settingsDialog').close(); render();
+    $('#saveStatus').textContent='Локальные записи удалены';
+  });
   $('#itemForm').addEventListener('submit',e=>{
     e.preventDefault();
     const title=$('#itemTitle').value.trim();if(!title)return;
