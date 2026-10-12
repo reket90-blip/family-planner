@@ -263,8 +263,8 @@
     $$('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
     $$('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
     $$('[data-view]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
-    $('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
-    $('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
+    $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
+    $$('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
     $$('[data-delete]').forEach(b=>b.addEventListener('click',()=>{
       const item=items.find(x=>x.id===b.dataset.delete); if(!item)return;
       if(confirm('Удалить «'+item.title+'»?')){items=items.filter(x=>x.id!==item.id);saveItems();render();}
@@ -272,14 +272,14 @@
     $$('[data-done]').forEach(b=>b.addEventListener('change',()=>{
       const item=items.find(x=>x.id===b.dataset.done);if(item){item.done=b.checked;saveItems();render();}
     }));
-    $('[data-month]').forEach(b=>b.addEventListener('click',()=>{
+    $$('[data-month]').forEach(b=>b.addEventListener('click',()=>{
       const next = new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+Number(b.dataset.month),1);
       calendarMonth=next;
       const selected=parseDate(selectedDate);
       if(!selected || selected.getFullYear()!==next.getFullYear() || selected.getMonth()!==next.getMonth()) selectedDate=localDate(next);
       render();
     }));
-    $('[data-month-today]').forEach(b=>b.addEventListener('click',()=>{
+    $$('[data-month-today]').forEach(b=>b.addEventListener('click',()=>{
       const now=parseDate(today());calendarMonth=new Date(now.getFullYear(),now.getMonth(),1);selectedDate=today();render();
     }));
     $$('[data-date]').forEach(b=>b.addEventListener('click',()=>{
@@ -304,7 +304,7 @@
   function setView(view) {
     if(!['today','calendar','tasks','home','pregnancy'].includes(view))return;
     currentView=view;
-    $('.tab').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');});
+    $$('.tab').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');});
     render();window.scrollTo({top:0,behavior:'smooth'});
   }
   $('#settingsBtn').addEventListener('click',()=>$('#settingsDialog').showModal());
@@ -326,7 +326,7 @@
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
     saveItems();$('#itemDialog').close();render();
   });
-  $$('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
+  $$$('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;$('#installBtn').classList.remove('hidden');});
   $('#installBtn').addEventListener('click',async()=>{
     if(!deferredPrompt){alert('На iPhone открой сайт в Safari, нажми «Поделиться» и выбери «На экран Домой».');return;}
