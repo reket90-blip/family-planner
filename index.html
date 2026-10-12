@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#245b45">
+  <meta name="description" content="Семейный планер: даты, дела, платежи и календарь беременности.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/leaf.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.svg">
+  <link rel="stylesheet" href="./styles.css">
+  <title>Наш планер</title>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Наш планер — главная"><span class="brand-mark">✿</span><span><b>Наш планер</b><small>дом, семья и маленькие радости</small></span></a>
+      <button id="installBtn" class="button button-soft hidden" type="button">Установить</button>
+    </header>
+    <main>
+      <section class="welcome panel">
+        <div class="welcome-copy"><p class="eyebrow" id="todayLabel">СЕГОДНЯ</p><h1>Всё важное —<br><em>под рукой.</em></h1><p class="muted">Спокойно планируем, ничего не забываем и оставляем место для жизни.</p></div>
+        <div class="leaf-art" aria-hidden="true">🌿</div>
+      </section>
+      <nav class="tabs" aria-label="Разделы планера">
+        <button class="tab active" data-view="today">Сегодня</button>
+        <button class="tab" data-view="calendar">Календарь</button>
+        <button class="tab" data-view="tasks">Мои дела</button>
+        <button class="tab" data-view="home">Дом и платежи</button>
+        <button class="tab" data-view="pregnancy">Беременность</button>
+      </nav>
+      <section id="view" aria-live="polite"></section>
+    </main>
+    <footer><span>Сделано с заботой 🌱</span><span id="saveStatus">Данные хранятся на этом устройстве</span></footer>
+  </div>
+  <dialog id="itemDialog">
+    <form id="itemForm" method="dialog">
+      <div class="dialog-head"><h2 id="dialogTitle">Добавить событие</h2><button class="icon-button" value="cancel" aria-label="Закрыть">✕</button></div>
+      <label>Что нужно сделать?<input id="itemTitle" name="title" maxlength="120" required placeholder="Например, оплатить интернет"></label>
+      <div class="form-grid">
+        <label>Раздел<select id="itemCategory" name="category"><option value="task">Дела</option><option value="family">Семья и даты</option><option value="clinic">Врач / клиника</option><option value="payment">Платежи</option><option value="meter">Показания счётчиков</option><option value="reminder">Напоминание</option></select></label>
+        <label>Дата<input id="itemDate" name="date" type="date" required></label>
+      </div>
+      <label>Время (необязательно)<input id="itemTime" name="time" type="time"></label>
+      <label>Заметка<textarea id="itemNotes" name="notes" rows="3" maxlength="500" placeholder="Адрес, сумма, что взять с собой…"></textarea></label>
+      <div class="dialog-actions"><button class="button button-soft" value="cancel">Отмена</button><button class="button button-primary" id="saveItemBtn" value="default">Сохранить</button></div>
+    </form>
+  </dialog>
+  <script src="./app.js" defer></script>
+</body>
+</html>
