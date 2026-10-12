@@ -38,9 +38,14 @@ Deno.serve(async (req: Request) => {
       if (!await hasInternalAuthorization(req)) return json(401, { error: "unauthorized" });
       const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
       if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json(400, { error: "invalid_email" });
-      const { data, error } = await admin.auth.admin.inviteUserByEmail(email);
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: "https://family-planner-preview.onrender.com/"
+      });
       if (error) return json(400, { error: "invite_failed", detail: error.message.slice(0,300) });
-      return json(200, { ok: true, invited: Boolean(data.user?.id) });
+      if (!data.user?.id) return json(500, { error: "invite_failed", detail: "Supabase returned no invited user id" });
+      const { error: allowError } = await admin.rpc("allow_planner_user", { p_user_id: data.user.id });
+      if (allowError) return json(500, { error: "allowlist_failed", detail: allowError.message.slice(0,300) });
+      return json(200, { ok: true, invited: true });
     } catch (err) {
       return json(500, { error: "invite_failed", detail: String((err as Error)?.message ?? err).slice(0,300) });
     }
