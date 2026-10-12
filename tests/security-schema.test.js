@@ -78,3 +78,10 @@ test('events can be exported as iCalendar files for manual iPhone Calendar impor
   assert.match(html, /id="itemReminder"/);
   assert.match(app, /remindBefore:Number\(\$\('#itemReminder'\)\.value\)/);
 });
+
+test('all multi-element event bindings use querySelectorAll rather than a single element', () => {
+  assert.doesNotMatch(app, /\$\(['"][^\n]*?\)\.forEach\(/);
+  assert.match(app, /\$\$\('\.tab'\)\.forEach/);
+  assert.match(app, /\$\$\('\[data-month\]'\)\.forEach/);
+  assert.match(app, /\$\$\('\[data-date\]'\)\.forEach/);
+});
