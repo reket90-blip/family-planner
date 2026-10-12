@@ -1,36 +1,42 @@
 # Supabase setup — Family Planner
 
-**Use a dedicated Supabase project for this app. Do not use the My Garage database.**
+Используется отдельный проект Family Planner. Базу My Garage не использовать.
 
 ## Security model
 
-- The web app must use only the project's publishable key in the browser. Never put a secret/service-role key in frontend code or GitHub.
-- All rows are owned by the authenticated Supabase user and protected by row-level security (RLS).
-- Anonymous access is not granted. Disable public sign-ups and create the spouse's account explicitly in Supabase Auth.
-- Use a strong password or email OTP/magic link and configure the production site URL plus allowed redirect URLs.
-- Treat calendar notes, clinic visits, pregnancy dates and payments as sensitive personal data.
-- Browser localStorage in the current prototype is not cloud sync and is not a secure shared backup.
+- В браузере только publishable key; никогда не добавлять service-role key или VAPID private key во frontend/GitHub.
+- Все пользовательские таблицы защищены RLS. Вход — только для заранее созданного аккаунта.
+- В Supabase Authentication отключить **Allow new users to sign up** и создать только аккаунт жены.
+- В репозитории пока нет реальных записей; репозиторий рекомендуется сделать приватным перед производственным использованием.
 
 ## Database
 
-Run `schema.sql` in the SQL Editor of the dedicated project. The script creates the tables, indexes, update triggers, explicit API grants and per-user RLS policies.
+Выполните `schema.sql` в SQL Editor проекта. Он создаёт таблицы, индексы, триггеры, push-подписки, лог доставки, функции расчёта напоминаний и политики RLS.
 
-After applying it, inspect Database → Tables and run the Supabase Security Advisor. Do not add any policy for `anon`.
+В уже развёрнутом проекте миграции применены. Для нового проекта проверьте наличие `pg_cron`, `pg_net` и Vault.
 
-## Before enabling cloud sync
+## Server-side secrets
 
-1. Create a separate Supabase project for Family Planner.
-2. Disable sign-ups; create only the intended user's account.
-3. Set the production Site URL and exact redirect URLs in Auth settings.
-4. Add the project's URL and publishable key to the frontend configuration using the deployment provider's environment/configuration mechanism.
-5. Implement and test sign-in, sign-out, session restore, loading/error states and migration from local-only data.
-6. Test that user A cannot read or modify user B's rows.
-7. Keep the repository private before storing private configuration or real user data.
+Три значения хранятся в Supabase Vault под именами:
+- `family-planner-vapid-public`
+- `family-planner-vapid-private`
+- `family-planner-cron-secret`
 
-## Notifications
+Не копируйте секреты в frontend, GitHub, тикеты или логи. Edge Function `push-notifications` читает конфигурацию через RPC, доступный только роли `service_role`.
 
-Do not rely on an iPhone PWA running in the background for reliable reminders. Scheduled reminders should be sent by a server-side scheduled function and delivered via Telegram and/or Web Push. Store bot tokens and VAPID private keys only in server-side secrets. Notification text should avoid exposing medical, pregnancy or payment details on a locked screen.
+## Scheduled job
 
-## Current status
+В рабочем проекте создан cron `family-planner-push-reminders` с расписанием `* * * * *`. Он вызывает Edge Function `push-notifications` с действием `send-due`; секрет авторизации берётся из Vault. Для нового проекта при настройке расписания используйте project ref и publishable/anon key именно этого проекта.
 
-The current app is still local-first. This schema is the security foundation, not proof that cloud sync or notifications are already connected. The frontend must not claim a cloud save until the authenticated database round-trip succeeds.
+## Account setup
+
+1. Authentication → Settings: отключить публичную регистрацию.
+2. Authentication → Users: пригласить только одну учётную запись.
+3. Authentication → URL Configuration: установить URL сайта планера и добавить точный URL в Redirect URLs.
+4. Войти в планер с приглашённой учётной записью.
+5. В Настройки → Push-уведомления нажать «Включить уведомления».
+6. На iPhone открыть сайт в Safari, выбрать «Поделиться» → «На экран Домой», затем открыть с иконки. Push доступен для установленных веб-приложений на iOS/iPadOS 16.4+.
+
+## Privacy and testing
+
+Push на заблокированном экране показывает название события. Не добавляйте чувствительные подробности в заголовок события, если они не должны отображаться на экране блокировки. Перед реальным использованием проверьте доставку тестовым событием на 2–3 минуты вперёд.
