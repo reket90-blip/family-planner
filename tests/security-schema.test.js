@@ -88,10 +88,11 @@ test('all multi-element event bindings use querySelectorAll rather than a single
   assert.ok(app.includes("$$('[data-date]').forEach"));
 });
 
-test('event editor can always be dismissed without satisfying required fields', () => {
-  assert.match(html, /id="closeItemDialog" type="button"/);
-  assert.match(html, /data-close-item/);
-  assert.match(app, /itemDialog\.addEventListener\('cancel'/);
+test('event editor cancel controls bypass native validation and close via method=dialog', () => {
+  assert.match(html, /<form id="itemForm" method="dialog">/);
+  assert.match(html, /id="closeItemDialog" type="submit" formnovalidate data-cancel-item value="cancel"/);
+  assert.match(html, /type="submit" formnovalidate data-cancel-item value="cancel">Отмена/);
+  assert.match(app, /if \(e\.submitter\?\.hasAttribute\('data-cancel-item'\)\) return;/);
   assert.match(app, /itemDialog\.addEventListener\('close'/);
   assert.match(app, /if\(event\.target===itemDialog\) itemDialog\.close\(\)/);
 });
