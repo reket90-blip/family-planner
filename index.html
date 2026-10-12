@@ -35,7 +35,7 @@
   </div>
   <dialog id="itemDialog">
     <form id="itemForm" method="dialog">
-      <div class="dialog-head"><h2 id="dialogTitle">Добавить событие</h2><button class="icon-button" id="closeItemDialog" type="button" aria-label="Закрыть">✕</button></div>
+      <div class="dialog-head"><h2 id="dialogTitle">Добавить событие</h2><button class="icon-button" id="closeItemDialog" type="submit" formnovalidate data-cancel-item value="cancel" aria-label="Закрыть">✕</button></div>
       <label>Что нужно сделать?<input id="itemTitle" name="title" maxlength="120" required placeholder="Например, оплатить интернет"></label>
       <div class="form-grid">
         <label>Раздел<select id="itemCategory" name="category"><option value="task">Дела</option><option value="family">Семья и даты</option><option value="clinic">Врач / клиника</option><option value="payment">Платежи</option><option value="meter">Показания счётчиков</option><option value="reminder">Напоминание</option></select></label>
@@ -45,7 +45,7 @@
         <label>Напомнить заранее<select id="itemReminder" name="remindBefore"><option value="0">Без напоминания</option><option value="10">За 10 минут</option><option value="30">За 30 минут</option><option value="60">За 1 час</option><option value="1440">За 1 день</option><option value="10080">За 1 неделю</option></select></label></div>
       <p class="reminder-help">Настройка сохранится в событии. Автоматическая доставка уведомлений появится после подключения push-сервиса.</p>
       <label>Заметка<textarea id="itemNotes" name="notes" rows="3" maxlength="500" placeholder="Адрес, сумма, что взять с собой…"></textarea></label>
-      <div class="dialog-actions"><button class="button button-soft" type="button" data-close-item>Отмена</button><button class="button button-primary" id="saveItemBtn" type="submit">Сохранить</button></div>
+      <div class="dialog-actions"><button class="button button-soft" type="submit" formnovalidate data-cancel-item value="cancel">Отмена</button><button class="button button-primary" id="saveItemBtn" type="submit">Сохранить</button></div>
     </form>
   </dialog>
   <dialog id="settingsDialog" aria-labelledby="settingsTitle">
