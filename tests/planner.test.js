@@ -85,7 +85,7 @@ test('database scheduler supports exact reminder timestamps and relative reminde
 });
 
 test('service worker invalidates old cache, refreshes app.js, and opens the event referenced by a push', () => {
-  assert.match(worker, /family-planner-v12/);
+  assert.match(worker, /family-planner-v13/);
   assert.match(worker, /app\.js\?v=20261013-7/);
   assert.match(html, /app\.js\?v=20261013-7/);
   assert.match(app, /new URLSearchParams\(location\.search\)\.get\('event'\)/);
