@@ -643,6 +643,9 @@
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
+        // Repair a previous partial setup: the browser may retain its subscription even
+        // if saving it to Supabase failed on the first attempt.
+        await callPushFunction({action:'subscribe', subscription:subscription.toJSON(), userAgent:navigator.userAgent});
         setPushDeviceStatus('enabled');
         status.textContent = (typeof Notification !== 'undefined' && Notification.permission === 'granted') ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
         button.textContent = 'Отключить уведомления'; button.disabled = false;
