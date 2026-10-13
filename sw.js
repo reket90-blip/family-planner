@@ -1,5 +1,5 @@
-const CACHE_NAME = 'family-planner-v10';
-const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icons/leaf.svg', './icons/apple-touch-icon.svg'];
+const CACHE_NAME = 'family-planner-v11';
+const APP_SHELL = ['./', './index.html', './styles.css?v=20261013-6', './app.js?v=20261013-6', './manifest.webmanifest', './icons/leaf.svg', './icons/apple-touch-icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
@@ -27,10 +27,14 @@ self.addEventListener('push', event => {
 });
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || './', self.location.origin).href;
+  const requested = new URL(event.notification.data?.url || './', self.location.origin);
+  const target = requested.origin === self.location.origin ? requested.href : new URL('./', self.location.origin).href;
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
     for (const client of clients) {
-      if (client.url.startsWith(self.location.origin) && 'focus' in client) return client.focus();
+      if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+        if ('navigate' in client && client.url !== target) return client.navigate(target).then(() => client.focus());
+        return client.focus();
+      }
     }
     return self.clients.openWindow(target);
   }));
