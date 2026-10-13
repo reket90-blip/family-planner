@@ -8,11 +8,25 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/leaf.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.svg">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=20261013-6">
   <title>Наш планер</title>
 </head>
 <body>
-  <section id="authGate" class="auth-gate hidden" aria-hidden="true"></section>
+  <section id="authGate" class="auth-gate hidden" aria-hidden="true">
+    <div class="auth-card">
+      <div class="auth-mark brand-mark">✿</div>
+      <p class="eyebrow">ЛИЧНЫЙ СЕМЕЙНЫЙ ПЛАНЕР</p>
+      <h1>С возвращением</h1>
+      <p class="muted">Войди в свой планер. Публичной регистрации нет — доступ только у приглашённого аккаунта.</p>
+      <form id="authForm" autocomplete="on">
+        <label>Электронная почта<input type="email" id="authEmail" name="email" required autocomplete="username" inputmode="email" placeholder="name@example.com"></label>
+        <label>Пароль<input type="password" id="authPassword" name="password" required autocomplete="current-password" placeholder="Пароль аккаунта"></label>
+        <button class="button button-primary" id="authSubmit" type="submit" style="width:100%">Войти</button>
+        <button class="text-link" id="resetPasswordBtn" type="button" style="margin-top:14px">Не помню пароль</button>
+        <p id="authStatus" class="auth-status" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
   <div class="app-shell" id="appShell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="Наш планер — главная"><span class="brand-mark">✿</span><span><b>Наш планер</b><small>дом, семья и маленькие радости</small></span></a>
@@ -42,9 +56,13 @@
         <label>Раздел<select id="itemCategory" name="category"><option value="task">Дела</option><option value="family">Семья и даты</option><option value="clinic">Врач / клиника</option><option value="payment">Платежи</option><option value="meter">Показания счётчиков</option><option value="reminder">Напоминание</option></select></label>
         <label>Дата<input id="itemDate" name="date" type="date" required></label>
       </div>
-      <div class="form-grid"><label>Время (необязательно)<input id="itemTime" name="time" type="time"></label>
+      <div class="form-grid"><label>Время события (необязательно)<input id="itemTime" name="time" type="time"></label>
         <label>Напомнить заранее<select id="itemReminder" name="remindBefore"><option value="0">Без напоминания</option><option value="10">За 10 минут</option><option value="30">За 30 минут</option><option value="60">За 1 час</option><option value="1440">За 1 день</option><option value="10080">За 1 неделю</option></select></label></div>
-      <p class="reminder-help">Настройка сохранится в событии. Автоматическая доставка уведомлений появится после подключения push-сервиса.</p>
+      <div class="form-grid">
+        <label>Дата отдельного напоминания<input id="itemReminderDate" name="reminderDate" type="date"></label>
+        <label>Время напоминания<input id="itemReminderTime" name="reminderTime" type="time"></label>
+      </div>
+      <p class="reminder-help">Укажи точную дату и время, если нужно напомнить независимо от события. Если дата пустая, используй «Напомнить заранее». Время без даты не сохраняется.</p>
       <label>Заметка<textarea id="itemNotes" name="notes" rows="3" maxlength="500" placeholder="Адрес, сумма, что взять с собой…"></textarea></label>
       <div class="dialog-actions"><button class="button button-soft" type="submit" formnovalidate data-cancel-item value="cancel">Отмена</button><button class="button button-primary" id="saveItemBtn" type="submit">Сохранить</button></div>
     </form>
@@ -69,6 +87,6 @@
     <div class="settings-footer"><button class="text-link danger-link" id="clearAllData" type="button">Удалить все записи с этого устройства</button></div>
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./app.js?v=20261013-5" defer></script>
+  <script src="./app.js?v=20261013-6" defer></script>
 </body>
 </html>
