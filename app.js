@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   // Public guest mode uses separate local-only storage and never reads or writes private cloud data.
-  const guestMode = new URLSearchParams(location.search).get('guest') === '1';
+  // Open directly into guest mode by default; authenticated access is an explicit route.
+  const guestMode = new URLSearchParams(location.search).get('login') !== '1';
   const STORE_KEY = guestMode ? 'family-planner-guest-items-v1' : 'family-planner-items-v1';
   const SETTINGS_KEY = guestMode ? 'family-planner-guest-settings-v1' : 'family-planner-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
