@@ -7,9 +7,31 @@
   const SETTINGS_KEY = guestMode ? 'family-planner-guest-settings-v1' : 'family-planner-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_bJPp8as_zZqo5NWVJVacaA_GGkDU86b';
-  const cloud = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  const createCloudClient = () => window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   }) || null;
+  let cloud = createCloudClient();
+  async function ensureCloudClient() {
+    if (cloud) return cloud;
+    await new Promise((resolve, reject) => {
+      let script = document.querySelector('script[data-supabase-loader]');
+      if (!script) {
+        script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.async = true;
+        script.dataset.supabaseLoader = 'true';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+      } else {
+        script.addEventListener('load', resolve, { once: true });
+        script.addEventListener('error', reject, { once: true });
+      }
+    });
+    cloud = createCloudClient();
+    if (!cloud) throw new Error('Не удалось загрузить модуль входа');
+    return cloud;
+  }
   let session = null;
   let cloudSyncReady = false;
   let syncingCloud = false;
@@ -168,11 +190,12 @@
   }
   async function authLogin(event) {
     event.preventDefault();
-    if (!cloud) { $('#authStatus').textContent = 'Не загрузился модуль входа. Проверь интернет и обнови страницу.'; return; }
     const submit = $('#authSubmit');
     submit.disabled = true;
-    $('#authStatus').textContent = 'Входим…';
+    $('#authStatus').textContent = 'Подключаем вход…';
     try {
+      if (!cloud) await ensureCloudClient();
+      $('#authStatus').textContent = 'Входим…';
       const {data, error} = await cloud.auth.signInWithPassword({
         email: $('#authEmail').value.trim(), password: $('#authPassword').value
       });
@@ -581,11 +604,7 @@
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
   render();
-  if (guestMode) {
-    // Deliberately do not initialize Supabase auth/session in guest mode.
-  } else if (!cloud) {
-    $('#authStatus').textContent = 'Для входа нужен интернет: не удалось загрузить модуль авторизации.';
-  } else {
+  function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
       if (nextSession) { if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession); }
       else if (event === 'SIGNED_OUT') showSignedOut();
@@ -594,5 +613,11 @@
       if (data.session) syncFromCloud(data.session);
       else showSignedOut();
     }).catch(() => showSignedOut());
+  }
+  if (!guestMode) {
+    if (cloud) initializeAuth();
+    else ensureCloudClient().then(initializeAuth).catch(() => {
+      $('#authStatus').textContent = 'Для входа нужен интернет: не удалось загрузить модуль авторизации.';
+    });
   }
 })();
