@@ -64,23 +64,55 @@ Deno.serve(async (req: Request) => {
       let sent = 0, skipped = 0, failed = 0;
       for (const item of (dueItems ?? [])) {
         const scheduledFor = new Date(item.due_at).toISOString();
-        const { data: claim, error: claimError } = await admin
-          .from("push_delivery_log")
-          .upsert({
-            user_id: item.user_id, item_id: item.item_id, scheduled_for: scheduledFor,
-            status: "queued", error: "",
-          }, { onConflict: "item_id,scheduled_for", ignoreDuplicates: true })
-          .select("id").maybeSingle();
-        if (claimError) throw claimError;
-        if (!claim) { skipped++; continue; }
         const { data: subscriptions, error: subsError } = await admin
           .from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", item.user_id);
         if (subsError) throw subsError;
+
         if (!subscriptions?.length) {
-          await admin.from("push_delivery_log").update({ status: "skipped", error: "No active push subscription" }).eq("id", claim.id);
+          // Record the skipped attempt, but do not consume a queued delivery claim.
+          // If a device subscribes shortly afterward, the same reminder can still be retried.
+          const { error: skipError } = await admin.from("push_delivery_log").upsert({
+            user_id: item.user_id, item_id: item.item_id, scheduled_for: scheduledFor,
+            status: "skipped", delivered_at: null, error: "No active push subscription",
+          }, { onConflict: "item_id,scheduled_for", ignoreDuplicates: true });
+          if (skipError) throw skipError;
           skipped++;
           continue;
         }
+
+        const { data: existing, error: existingError } = await admin
+          .from("push_delivery_log")
+          .select("id,status,error")
+          .eq("item_id", item.item_id)
+          .eq("scheduled_for", scheduledFor)
+          .maybeSingle();
+        if (existingError) throw existingError;
+
+        let claimId: string | null = null;
+        if (!existing) {
+          const { data: claim, error: claimError } = await admin
+            .from("push_delivery_log")
+            .upsert({
+              user_id: item.user_id, item_id: item.item_id, scheduled_for: scheduledFor,
+              status: "queued", delivered_at: null, error: "",
+            }, { onConflict: "item_id,scheduled_for", ignoreDuplicates: true })
+            .select("id").maybeSingle();
+          if (claimError) throw claimError;
+          claimId = claim?.id ?? null;
+        } else if (existing.status === "skipped" && existing.error === "No active push subscription") {
+          // Revive only the known no-device case; a sent or failed notification is never duplicated.
+          const { data: retryClaim, error: retryError } = await admin
+            .from("push_delivery_log")
+            .update({ status: "queued", delivered_at: null, error: "" })
+            .eq("id", existing.id)
+            .eq("status", "skipped")
+            .eq("error", "No active push subscription")
+            .select("id").maybeSingle();
+          if (retryError) throw retryError;
+          claimId = retryClaim?.id ?? null;
+        }
+
+        if (!claimId) { skipped++; continue; }
         const payload = JSON.stringify({
           title: "Наш планер 🌿",
           body: item.title + (item.event_time ? ` · ${String(item.event_time).slice(0,5)}` : ""),
@@ -102,10 +134,10 @@ Deno.serve(async (req: Request) => {
           }
         }
         if (delivered > 0) {
-          await admin.from("push_delivery_log").update({ status: "sent", delivered_at: new Date().toISOString(), error: errors.join("; ").slice(0,1000) }).eq("id", claim.id);
+          await admin.from("push_delivery_log").update({ status: "sent", delivered_at: new Date().toISOString(), error: errors.join("; ").slice(0,1000) }).eq("id", claimId);
           sent++;
         } else {
-          await admin.from("push_delivery_log").update({ status: "failed", error: errors.join("; ").slice(0,1000) || "Push delivery failed" }).eq("id", claim.id);
+          await admin.from("push_delivery_log").update({ status: "failed", error: errors.join("; ").slice(0,1000) || "Push delivery failed" }).eq("id", claimId);
           failed++;
         }
       }
