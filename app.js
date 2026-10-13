@@ -451,8 +451,8 @@
   function bindView() {
     $$('[data-add]').forEach(b=>b.addEventListener('click',()=>addItem()));
     $$('[data-add-category]').forEach(b=>b.addEventListener('click',()=>addItem(b.dataset.addCategory)));
-    $('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
-    $('[data-doctor-reminder]').forEach(b=>b.addEventListener('click',()=>{
+    $$('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
+    $$('[data-doctor-reminder]').forEach(b=>b.addEventListener('click',()=>{
       const reminderDate = shiftDate(today(),1);
       addItem('clinic',reminderDate);
       $('#itemTitle').value = 'Записаться к врачу';
