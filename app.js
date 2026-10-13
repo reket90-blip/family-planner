@@ -707,41 +707,86 @@
     setView('calendar');
   }
   openNotificationEvent();
+  let authAttemptInProgress = false;
+  function showCloudConnectionError(error) {
+    cloudSyncReady = false;
+    activeCloudUserId = null;
+    $('#authGate').classList.add('hidden');
+    $('#authGate').setAttribute('aria-hidden','true');
+    $('#appShell').classList.remove('hidden');
+    const message = String(error?.message || error?.code || error || 'unknown_error');
+    const providerDisabled = /anonymous_provider_disabled|Anonymous sign-ins are disabled/i.test(message);
+    $('#saveStatus').textContent = providerDisabled
+      ? 'Облако не подключено · анонимный вход отклонён'
+      : 'Сохранено на устройстве · облако не подключено';
+    const intro = $('.settings-intro');
+    if (intro) intro.textContent = providerDisabled
+      ? 'Вход без почты отклонён самим Supabase. Проверь Anonymous Sign-Ins именно в проекте txlcyakktgtqgveosojz. Планер продолжает хранить записи локально; нажми «Повторить подключение» после изменения настройки.'
+      : 'Почта не нужна. Пока облако не подключено, записи остаются в этом браузере. Можно повторить подключение без потери локальных записей.';
+    const pushStatus = $('#pushStatus');
+    if (pushStatus) pushStatus.textContent = 'Push пока недоступен: сначала нужно подключить облачную сессию.';
+    const pushButton = $('#togglePush');
+    if (pushButton) pushButton.disabled = true;
+    const testButton = $('#testPush');
+    if (testButton) testButton.classList.add('hidden');
+    let retry = $('#retryCloudConnection');
+    if (!retry) {
+      retry = document.createElement('button');
+      retry.id = 'retryCloudConnection';
+      retry.type = 'button';
+      retry.className = 'button button-primary';
+      retry.textContent = 'Повторить подключение';
+      retry.addEventListener('click', connectCloud);
+      const status = $('#saveStatus');
+      status.insertAdjacentElement('afterend', retry);
+    }
+    console.error('Planner cloud connection failed', error);
+  }
+  async function connectCloud() {
+    if (!cloud || authAttemptInProgress) return;
+    authAttemptInProgress = true;
+    const retry = $('#retryCloudConnection');
+    if (retry) { retry.disabled = true; retry.textContent = 'Подключаем…'; }
+    $('#saveStatus').textContent = 'Подключаем облако…';
+    try {
+      const {data, error} = await cloud.auth.getSession();
+      if (error) throw error;
+      let nextSession = data.session;
+      if (!nextSession) {
+        const {data: anonymous, error: anonymousError} = await cloud.auth.signInAnonymously({
+          options: {data: {planner: 'family-planner'}}
+        });
+        if (anonymousError) throw anonymousError;
+        if (!anonymous.session) throw new Error('anonymous_session_missing');
+        nextSession = anonymous.session;
+      }
+      await syncFromCloud(nextSession);
+      if (cloudSyncReady) {
+        $('#retryCloudConnection')?.remove();
+      } else {
+        throw new Error('cloud_sync_not_ready');
+      }
+    } catch (error) {
+      showCloudConnectionError(error);
+    } finally {
+      authAttemptInProgress = false;
+      const button = $('#retryCloudConnection');
+      if (button) { button.disabled = false; button.textContent = 'Повторить подключение'; }
+    }
+  }
   function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
-      if (nextSession) {
-        if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession);
+      if (nextSession && (event !== 'INITIAL_SESSION' || !activeCloudUserId)) {
+        // Supabase auth callbacks run synchronously; defer network work to avoid auth-lock deadlocks.
+        Promise.resolve().then(() => syncFromCloud(nextSession));
       } else if (event === 'SIGNED_OUT') showSignedOut();
     });
-    cloud.auth.getSession().then(async ({data, error}) => {
-      if (error) throw error;
-      if (data.session) {
-        await syncFromCloud(data.session);
-        return;
-      }
-      const {data: anonymous, error: anonymousError} = await cloud.auth.signInAnonymously({
-        options: {data: {planner: 'family-planner'}}
-      });
-      if (anonymousError) throw anonymousError;
-      if (!anonymous.session) throw new Error('anonymous_session_missing');
-      await syncFromCloud(anonymous.session);
-    }).catch(error => {
-      cloudSyncReady = false;
-      $('#authGate').classList.add('hidden');
-      $('#authGate').setAttribute('aria-hidden','true');
-      $('#appShell').classList.remove('hidden');
-      $('#saveStatus').textContent = 'Сохранено на устройстве · облако не подключено';
-      const intro = $('.settings-intro');
-      if (intro) intro.textContent = 'Почта не нужна. Сейчас записи сохраняются в этом браузере. Для синхронизации и push-напоминаний требуется разрешённый анонимный вход в облако.';
-      const pushStatus = $('#pushStatus');
-      if (pushStatus) pushStatus.textContent = 'Push-уведомления недоступны, пока облачный вход не подключён.';
-      const pushButton = $('#togglePush');
-      if (pushButton) pushButton.disabled = true;
-      const testButton = $('#testPush');
-      if (testButton) testButton.classList.add('hidden');
-      console.error('Planner anonymous cloud sign-in failed', error);
-    });
+    connectCloud();
   }
+  window.addEventListener('online', () => { if (!cloudSyncReady) connectCloud(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && !cloudSyncReady) connectCloud();
+  });
   if (cloud) initializeAuth();
   else {
     $('#authGate').classList.add('hidden');
