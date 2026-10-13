@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
           title: "Наш планер 🌿",
           body: item.title + (item.event_time ? ` · ${String(item.event_time).slice(0,5)}` : ""),
           tag: `planner-${item.item_id}`,
-          data: { url: "./", itemId: item.item_id, category: item.category ?? "Событие" },
+          data: { url: "./?event=" + encodeURIComponent(item.item_id), itemId: item.item_id, category: item.category ?? "Событие" },
         });
         const errors: string[] = [];
         let delivered = 0;
@@ -133,6 +133,42 @@ Deno.serve(async (req: Request) => {
       return json(200, { publicKey: config.public_key });
     } catch { return json(500, { error: "configuration_unavailable" }); }
   }
+  if (body.action === "test") {
+    try {
+      const config = await getPushConfig();
+      if (!config?.public_key || !config.private_key) return json(503, { error: "push_not_configured" });
+      webpush.setVapidDetails("mailto:planner-notifications@example.com", config.public_key, config.private_key);
+      const { data: subscriptions, error: subsError } = await admin
+        .from("push_subscriptions").select("id,endpoint,p256dh,auth").eq("user_id", userId);
+      if (subsError) throw subsError;
+      if (!subscriptions?.length) return json(409, { error: "no_active_subscription" });
+      const payload = JSON.stringify({
+        title: "Тестовое уведомление — Наш планер 🌿",
+        body: "Push-уведомления подключены к этому устройству.",
+        tag: "planner-test-" + Date.now(),
+        data: { url: "./" },
+      });
+      const errors: string[] = [];
+      let sent = 0;
+      for (const sub of subscriptions) {
+        try {
+          await webpush.sendNotification({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload);
+          sent++;
+        } catch (err) {
+          const e = err as { statusCode?: number; message?: string };
+          errors.push(String(e.message ?? err).slice(0, 200));
+          if (e.statusCode === 404 || e.statusCode === 410) {
+            await admin.from("push_subscriptions").delete().eq("id", sub.id);
+          }
+        }
+      }
+      if (sent === 0) return json(502, { error: "test_push_failed", detail: errors.join("; ").slice(0, 500) });
+      return json(200, { ok: true, sent });
+    } catch (err) {
+      return json(500, { error: "test_push_failed", detail: String((err as Error)?.message ?? err).slice(0, 300) });
+    }
+  }
+
   if (body.action === "subscribe") {
     const sub = body.subscription;
     if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth ||
