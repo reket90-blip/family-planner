@@ -110,10 +110,10 @@
     syncingCloud = true;
     session = nextSession;
     activeCloudUserId = nextSession.user.id;
-    $('#authGate').classList.add('hidden');
-    $('#authGate').setAttribute('aria-hidden','true');
-    $('#appShell').classList.remove('hidden');
-    $('#authStatus').textContent = '';
+    $('#authGate').classList.remove('hidden');
+    $('#authGate').setAttribute('aria-hidden','false');
+    $('#appShell').classList.add('hidden');
+    $('#authStatus').textContent = 'Проверяем доступ к личному планеру…';
     $('#saveStatus').textContent = 'Загружаем защищённые данные…';
     try {
       const { data: allowed, error: allowError } = await cloud.rpc('is_planner_allowed_user');
@@ -160,11 +160,18 @@
         due_date: settings.dueDate || null, timezone: 'Asia/Novosibirsk',
         notifications_enabled: (typeof Notification !== 'undefined' && Notification.permission === 'granted')
       }, { onConflict: 'user_id' });
+      $('#authGate').classList.add('hidden');
+      $('#authGate').setAttribute('aria-hidden','true');
+      $('#appShell').classList.remove('hidden');
+      $('#authStatus').textContent = '';
       render();
       openNotificationEvent();
       refreshPushStatus();
     } catch (error) {
       cloudSyncReady = false;
+      $('#appShell').classList.add('hidden');
+      $('#authGate').classList.remove('hidden');
+      $('#authGate').setAttribute('aria-hidden','false');
       $('#saveStatus').textContent = 'Не удалось загрузить облачные записи';
       $('#authStatus').textContent = 'Вход выполнен, но облако пока недоступно. Проверь подключение и обнови страницу.';
       console.error('Planner initial cloud sync failed', error);
