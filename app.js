@@ -15,7 +15,7 @@
   let activeCloudUserId = null;
   let syncTimer = null;
   const $ = (selector, root = document) => root.querySelector(selector);
-  const $ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   // Keep primary navigation responsive even if a view's own controls fail to bind.
   document.addEventListener('click', event => {
     const tab = event.target.closest?.('.tabs .tab[data-view]');
