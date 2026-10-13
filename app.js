@@ -155,11 +155,12 @@
       }
       localStorage.setItem(STORE_KEY, JSON.stringify(items));
       $('#saveStatus').textContent = 'Синхронизировано с облаком';
-      await cloud.from('planner_settings').upsert({
+      const {error: settingsSaveError} = await cloud.from('planner_settings').upsert({
         user_id: session.user.id, pregnancy_start: settings.pregnancyStart || null,
         due_date: settings.dueDate || null, timezone: 'Asia/Novosibirsk',
         notifications_enabled: (typeof Notification !== 'undefined' && Notification.permission === 'granted')
       }, { onConflict: 'user_id' });
+      if (settingsSaveError) throw settingsSaveError;
       $('#authGate').classList.add('hidden');
       $('#authGate').setAttribute('aria-hidden','true');
       $('#appShell').classList.remove('hidden');
