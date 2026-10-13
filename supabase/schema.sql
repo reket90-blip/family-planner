@@ -250,7 +250,7 @@ as $$
   select c.item_id, c.user_id, c.title, c.category, c.event_date, c.event_time, c.due_at
   from candidates as c
   where c.due_at <= pg_catalog.now()
-    and c.due_at > pg_catalog.now() - interval '3 minutes'
+    and c.due_at > pg_catalog.now() - interval '15 minutes'
 $$;
 revoke all on function public.get_due_planner_reminders() from public, anon, authenticated;
 grant execute on function public.get_due_planner_reminders() to service_role;
