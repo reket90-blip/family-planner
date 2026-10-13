@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   // Публичной регистрации нет: используем только ранее приглашённый аккаунт.
-  const guestMode = false;
+  const guestMode = true;
   const STORE_KEY = 'family-planner-guest-items-v1';
   const SETTINGS_KEY = 'family-planner-guest-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
