@@ -81,7 +81,7 @@ test('events can be exported as iCalendar files for manual iPhone Calendar impor
   assert.match(app, /DTSTART;VALUE=DATE/);
   assert.match(app, /data-ics=/);
   assert.match(html, /id="itemReminder"/);
-  assert.match(app, /remindBefore:Number\(\$\('#itemReminder'\)\.value\)/);
+  assert.match(app, /remindBefore:reminderDate\?0:\(Number\(\$\('#itemReminder'\)\.value\)\|\|0\)/);
 });
 
 test('all multi-element event bindings use querySelectorAll rather than a single element', () => {
