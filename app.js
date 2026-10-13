@@ -148,7 +148,13 @@
       localStorage.setItem(STORE_KEY, JSON.stringify(items));
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       cloudSyncReady = true;
-      await syncItemsToCloud();
+      const rows = items.map(dbItem);
+      if (rows.length) {
+        const {error: mergeError} = await cloud.from('planner_items').upsert(rows, {onConflict:'id'});
+        if (mergeError) throw mergeError;
+      }
+      localStorage.setItem(STORE_KEY, JSON.stringify(items));
+      $('#saveStatus').textContent = 'Синхронизировано с облаком';
       await cloud.from('planner_settings').upsert({
         user_id: session.user.id, pregnancy_start: settings.pregnancyStart || null,
         due_date: settings.dueDate || null, timezone: 'Asia/Novosibirsk',
@@ -696,4 +702,5 @@
     }).catch(() => showSignedOut());
   }
   if (!guestMode && cloud) initializeAuth();
+  else if (!cloud) $('#authStatus').textContent = 'Не удалось загрузить модуль входа. Проверь подключение к интернету и обнови страницу.';
 })();
