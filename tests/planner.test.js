@@ -63,12 +63,15 @@ test('pregnancy weeks are displayed on Today and in a 42-week calendar', () => {
   assert.match(app, /type="date" name="dueDate"/);
 });
 
-test('the top brand returns to Today and there is no registration form', () => {
+test('the planner opens without asking for an email or password', () => {
+  assert.match(html, /id="authGate" class="auth-gate hidden" aria-hidden="true"/);
+  assert.match(html, /id="appShell"/);
+  assert.match(app, /const guestMode = true/);
+  assert.doesNotMatch(manifest, /guest=1/);
+});
+test('the top brand returns to Today and public registration stays absent', () => {
   assert.match(app, /\$\('\.brand'\)\.addEventListener\('click'.*setView\('today'\)/);
-  assert.match(html, /id="authForm"/);
-  assert.match(html, /id="authPassword"/);
   assert.doesNotMatch(html, /id="signUpForm"|id="registerForm"/);
-  assert.match(app, /const guestMode = false/);
 });
 
 test('database scheduler supports exact reminder timestamps and relative reminders', () => {
