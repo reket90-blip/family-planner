@@ -13,6 +13,8 @@ const worker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 const manifest = fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8');
 const schema = fs.readFileSync(path.join(root, 'supabase/schema.sql'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261013152214_add_absolute_reminder_schedule.sql'), 'utf8');
+const retryMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261014000000_retry_push_reminders_after_subscription.sql'), 'utf8');
+const pushFunction = fs.readFileSync(path.join(root, 'supabase/functions/push-notifications/index.ts'), 'utf8');
 const anonymousMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261013160000_allow_anonymous_planner_users.sql'), 'utf8');
 
 function extractDateOrdinal() {
@@ -94,26 +96,30 @@ test('adding an event saves it locally immediately and renders it without waitin
   assert.match(app, /function openNotificationEvent/);
 });
 
-test('database scheduler supports exact reminder timestamps and relative reminders', () => {
-  for (const source of [schema, migration]) {
+test('database scheduler supports exact reminder timestamps, relative reminders, and retry window', () => {
+  for (const source of [schema, migration, retryMigration]) {
     assert.match(source, /add column if not exists reminder_date date/i);
     assert.match(source, /add column if not exists reminder_time time/i);
     assert.match(source, /when i\.reminder_date is not null then/i);
     assert.match(source, /make_interval\(mins => i\.remind_before\)/i);
-    assert.match(source, /interval '3 minutes'/i);
   }
+  assert.match(schema, /interval '15 minutes'/i);
+  assert.match(retryMigration, /interval '15 minutes'/i);
 });
 
 test('service worker invalidates old cache, refreshes app.js, and opens the event referenced by a push', () => {
-  assert.match(worker, /family-planner-v15/);
-  assert.match(worker, /app\.js\?v=20261014-1/);
-  assert.match(html, /app\.js\?v=20261014-1/);
+  assert.match(worker, /family-planner-v16/);
+  assert.match(worker, /app\.js\?v=20261014-2/);
+  assert.match(html, /app\.js\?v=20261014-2/);
   assert.match(app, /new URLSearchParams\(location\.search\)\.get\('event'\)/);
   assert.match(manifest, /"start_url": "\.\/"/);
   assert.doesNotMatch(manifest, /guest=1/);
 });
 
-test('push controls expose a real server-side test action', () => {
+test('push controls guide setup and immediately verify a new subscription', () => {
   assert.match(html, /id="testPush"/);
-  assert.match(app, /callPushFunction\(\{action:'test'\}\)/);
+  assert.match(app, /renderPushPrompt\(\)/);
+  assert.match(app, /const testResult = await callPushFunction\(\{action:'test'\}\)/);
+  assert.match(pushFunction, /existing\.status === "skipped" && existing\.error === "No active push subscription"/);
+  assert.match(pushFunction, /No active push subscription/);
 });
