@@ -19,10 +19,18 @@ grant select on table private.planner_allowed_users to authenticated;
 drop policy if exists "users check own planner allowlist" on private.planner_allowed_users;
 create policy "users check own planner allowlist" on private.planner_allowed_users for select to authenticated using ((select auth.uid()) = user_id);
 create or replace function public.is_planner_allowed_user()
-returns boolean language sql stable set search_path = ''
-as $$
-  select exists (select 1 from private.planner_allowed_users as allowed where allowed.user_id = auth.uid())
-$$;
+returns boolean
+language sql
+stable
+set search_path = ''
+as $
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false)
+    or exists (
+      select 1
+      from private.planner_allowed_users as allowed
+      where allowed.user_id = auth.uid()
+    )
+$;
 revoke all on function public.is_planner_allowed_user() from public, anon;
 grant execute on function public.is_planner_allowed_user() to authenticated, service_role;
 create or replace function public.allow_planner_user(p_user_id uuid)
