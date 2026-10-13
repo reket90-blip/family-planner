@@ -120,6 +120,7 @@ test('push controls guide setup and immediately verify a new subscription', () =
   assert.match(html, /id="testPush"/);
   assert.match(app, /renderPushPrompt\(\)/);
   assert.match(app, /const testResult = await callPushFunction\(\{action:'test'\}\)/);
+  assert.match(app, /await callPushFunction\(\{action:'subscribe', subscription:subscription\.toJSON\(\), userAgent:navigator\.userAgent\}\);/);
   assert.match(pushFunction, /existing\.status === "skipped" && existing\.error === "No active push subscription"/);
   assert.match(pushFunction, /No active push subscription/);
 });
