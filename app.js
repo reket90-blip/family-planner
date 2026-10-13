@@ -360,7 +360,7 @@
       <div class="note" style="margin-top:15px">Совет: укажи сумму, лицевой счёт или последние показания в заметке. Для конфиденциальности пока не добавляй пароли и полные банковские реквизиты.</div>`;
   }
   const dateOrdinal = value => {
-    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(value || ''));
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
     return m ? Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])) / 86400000) : NaN;
   };
   function weekText(week) {
