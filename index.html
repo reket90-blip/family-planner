@@ -8,25 +8,11 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/leaf.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.svg">
-  <link rel="stylesheet" href="./styles.css?v=20261013-3">
+  <link rel="stylesheet" href="./styles.css">
   <title>Наш планер</title>
 </head>
 <body>
-  <section id="authGate" class="auth-gate" aria-labelledby="authTitle">
-    <div class="auth-card">
-      <div class="brand-mark auth-mark" aria-hidden="true">✿</div>
-      <p class="eyebrow">ЛИЧНОЕ ПРОСТРАНСТВО</p>
-      <h1 id="authTitle">Твой планер,<br><em>всё под рукой.</em></h1>
-      <p class="muted">Войди, чтобы открыть календарь и получать напоминания. Доступ выдаётся только владельцу аккаунта.</p>
-      <form id="authForm">
-        <label>Электронная почта<input id="authEmail" type="email" autocomplete="username" required placeholder="name@example.com"></label>
-        <label>Пароль<input id="authPassword" type="password" autocomplete="current-password" required minlength="8" placeholder="Пароль"></label>
-        <button class="button button-primary" id="authSubmit" type="submit" style="width:100%">Войти в планер</button>
-      </form>
-      <p id="authStatus" class="auth-status" role="status" aria-live="polite">Регистрация закрыта. Если аккаунт ещё не создан, его нужно добавить в панели управления.</p>
-    </div>
-  </section>
-  <div class="app-shell hidden" id="appShell">
+  <div class="app-shell" id="appShell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="Наш планер — главная"><span class="brand-mark">✿</span><span><b>Наш планер</b><small>дом, семья и маленькие радости</small></span></a>
       <div class="topbar-actions"><button id="settingsBtn" class="icon-button settings-trigger" type="button" aria-label="Настройки и резервная копия" title="Настройки">⚙</button><button id="installBtn" class="button button-soft hidden" type="button">Установить</button></div>
@@ -81,7 +67,7 @@
     <div class="note settings-note">Для push на iPhone добавь планер на экран «Домой», открой его с иконки и разреши уведомления. События с напоминанием должны быть сохранены в облаке.</div>
     <div class="settings-footer"><button class="text-link danger-link" id="clearAllData" type="button">Удалить все записи с этого устройства</button></div>
   </dialog>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" async></script>
-  <script src="./app.js?v=20261013-3" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./app.js" defer></script>
 </body>
 </html>
