@@ -1,7 +1,9 @@
 (() => {
   'use strict';
-  const STORE_KEY = 'family-planner-items-v1';
-  const SETTINGS_KEY = 'family-planner-settings-v1';
+  // Public guest mode uses separate local-only storage and never reads or writes private cloud data.
+  const guestMode = new URLSearchParams(location.search).get('guest') === '1';
+  const STORE_KEY = guestMode ? 'family-planner-guest-items-v1' : 'family-planner-items-v1';
+  const SETTINGS_KEY = guestMode ? 'family-planner-guest-settings-v1' : 'family-planner-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_bJPp8as_zZqo5NWVJVacaA_GGkDU86b';
   const cloud = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -42,7 +44,7 @@
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(items));
       $('#saveStatus').textContent = cloudSyncReady ? 'Сохранено на устройстве и в облаке' : 'Сохранено на этом устройстве';
-      queueCloudSync();
+      if (!guestMode) queueCloudSync();
     } catch { $('#saveStatus').textContent = 'Не удалось сохранить данные'; }
   }
   function loadSettings() {
@@ -52,7 +54,7 @@
   function saveSettings() {
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-      if (cloudSyncReady && session?.user?.id) {
+      if (!guestMode && cloudSyncReady && session?.user?.id) {
         cloud.from('planner_settings').upsert({
           user_id: session.user.id,
           pregnancy_start: settings.pregnancyStart || null,
@@ -96,7 +98,7 @@
     }
   }
   async function syncFromCloud(nextSession) {
-    if (!cloud || !nextSession?.user?.id || syncingCloud || activeCloudUserId === nextSession.user.id && cloudSyncReady) return;
+    if (guestMode || !cloud || !nextSession?.user?.id || syncingCloud || activeCloudUserId === nextSession.user.id && cloudSyncReady) return;
     syncingCloud = true;
     session = nextSession;
     activeCloudUserId = nextSession.user.id;
@@ -154,6 +156,7 @@
     }
   }
   function showSignedOut() {
+    if (guestMode) return;
     session = null;
     cloudSyncReady = false;
     syncingCloud = false;
@@ -448,7 +451,15 @@
     $$('.tab').forEach(b=>{const active=b.dataset.view===view;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false');});
     render();window.scrollTo({top:0,behavior:'smooth'});
   }
-  $('#settingsBtn').addEventListener('click',()=>{ $('#settingsDialog').showModal(); refreshPushStatus(); });
+  if (guestMode) {
+    $('#authGate').classList.add('hidden');
+    $('#appShell').classList.remove('hidden');
+    $('#saveStatus').textContent = 'Гостевой режим — данные только на этом устройстве';
+    $('.settings-intro').textContent = 'Гостевой режим: записи сохраняются только в этом браузере на этом устройстве. Они не отправляются в облако и не видны на других телефонах.';
+    $('#signOutBtn').classList.add('hidden');
+    $('.push-panel').innerHTML = '<h3>Уведомления</h3><p class="muted">В гостевом режиме облачные push-уведомления недоступны. События и задачи можно вести локально.</p>';
+  }
+  $('#settingsBtn').addEventListener('click',()=>{ $('#settingsDialog').showModal(); if (!guestMode) refreshPushStatus(); });
   $('#closeSettings').addEventListener('click',()=>$('#settingsDialog').close());
   $('#exportBackup').addEventListener('click',exportBackup);
   $('#importBackup').addEventListener('click',()=>$('#backupFile').click());
@@ -467,7 +478,7 @@
     $('#saveStatus').textContent='Локальные записи удалены';
   });
   async function callPushFunction(payload) {
-    if (!cloud || !session) throw new Error('Нужно войти в планер');
+    if (guestMode || !cloud || !session) throw new Error('В гостевом режиме облачные уведомления недоступны');
     const {data, error} = await cloud.functions.invoke('push-notifications', {body: payload});
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
@@ -508,6 +519,7 @@
   async function togglePushNotifications() {
     const button = $('#togglePush');
     const status = $('#pushStatus');
+    if (guestMode) { status.textContent = 'В гостевом режиме облачные уведомления недоступны.'; return; }
     if (!cloud || !session) { status.textContent = 'Сначала войди в планер.'; return; }
     button.disabled = true;
     try {
@@ -568,7 +580,9 @@
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
   render();
-  if (!cloud) {
+  if (guestMode) {
+    // Deliberately do not initialize Supabase auth/session in guest mode.
+  } else if (!cloud) {
     $('#authStatus').textContent = 'Для входа нужен интернет: не удалось загрузить модуль авторизации.';
   } else {
     cloud.auth.onAuthStateChange((event, nextSession) => {
