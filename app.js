@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  // Планер сразу открывается без входа; данные хранятся локально на устройстве.
-  const guestMode = true;
+  // Публичной регистрации нет: используем только ранее приглашённый аккаунт.
+  const guestMode = false;
   const STORE_KEY = 'family-planner-guest-items-v1';
   const SETTINGS_KEY = 'family-planner-guest-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
@@ -79,8 +79,9 @@
     if (!isUuid(item.id)) item.id = crypto.randomUUID();
     return {
       id: item.id, user_id: session.user.id, title: item.title, category: item.category || 'task',
-      event_date: item.date || today(), event_time: item.time || null, notes: item.notes || '',
-      done: item.done === true, remind_before: Number(item.remindBefore) || 0,
+      event_date: item.date || today(), event_time: item.time || null,
+      reminder_date: item.reminderDate || null, reminder_time: item.reminderDate ? (item.reminderTime || '09:00') : null,
+      notes: item.notes || '', done: item.done === true, remind_before: Number(item.remindBefore) || 0,
       created_at: item.createdAt || new Date().toISOString()
     };
   }
@@ -132,6 +133,7 @@
       const remoteItems = (itemsResult.data || []).map(row => ({
         id: row.id, title: row.title, category: row.category || 'task',
         date: row.event_date, time: row.event_time ? String(row.event_time).slice(0,5) : '',
+        reminderDate: row.reminder_date || '', reminderTime: row.reminder_time ? String(row.reminder_time).slice(0,5) : '',
         notes: row.notes || '', done: row.done === true, remindBefore: Number(row.remind_before) || 0,
         createdAt: row.created_at || ''
       }));
@@ -152,6 +154,7 @@
         notifications_enabled: (typeof Notification !== 'undefined' && Notification.permission === 'granted')
       }, { onConflict: 'user_id' });
       render();
+      openNotificationEvent();
       refreshPushStatus();
     } catch (error) {
       cloudSyncReady = false;
@@ -245,8 +248,10 @@
   }
   function itemMeta(item) {
     const reminderLabels={10:'за 10 мин',30:'за 30 мин',60:'за 1 час',1440:'за 1 день',10080:'за 1 неделю'};
-    const bits = [categories[item.category]?.label || 'Дело', item.time || '', item.remindBefore ? 'Напомнить '+(reminderLabels[item.remindBefore]||'заранее') : '', item.notes || ''].filter(Boolean);
-    return bits.join(' · ');
+    const reminder = item.reminderDate
+      ? 'Напоминание ' + fmtDate(item.reminderDate,{day:'numeric',month:'short'}) + ' в ' + (item.reminderTime || '09:00')
+      : item.remindBefore ? 'Напомнить '+(reminderLabels[item.remindBefore]||'заранее') : '';
+    return [categories[item.category]?.label || 'Дело', item.time || '', reminder, item.notes || ''].filter(Boolean).join(' · ');
   }
   function eventRow(item, showDate = true) {
     const cat = categories[item.category] || categories.task;
@@ -284,6 +289,7 @@
     const dates = items.filter(x => !x.done && x.category === 'family' && x.date >= today()).length;
     const duePayments = items.filter(x => !x.done && x.category === 'payment' && x.date <= shiftDate(today(),7) && x.date >= today()).length;
     return `
+      ${renderPregnancySummary()}
       <div class="stats">
         <div class="panel stat"><div class="stat-label">Дела на сегодня</div><div class="stat-number">${todayItems.filter(x=>!x.done).length}</div><div class="stat-note">Шаг за шагом</div></div>
         <div class="panel stat"><div class="stat-label">Ближайшие даты</div><div class="stat-number">${dates}</div><div class="stat-note">Семейные моменты</div></div>
@@ -351,24 +357,56 @@
       </div>
       <div class="note" style="margin-top:15px">Совет: укажи сумму, лицевой счёт или последние показания в заметке. Для конфиденциальности пока не добавляй пароли и полные банковские реквизиты.</div>`;
   }
+  const dateOrdinal = value => {
+    const m = /^(\\d{4})-(\\d{2})-(\\d{2})$/.exec(String(value || ''));
+    return m ? Math.floor(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])) / 86400000) : NaN;
+  };
+  function weekText(week) {
+    const n = Math.abs(Number(week) || 0), lastTwo = n % 100, last = n % 10;
+    const word = lastTwo >= 11 && lastTwo <= 14 ? 'недель' : last === 1 ? 'неделя' : last >= 2 && last <= 4 ? 'недели' : 'недель';
+    return n + ' ' + word;
+  }
   function pregnancyInfo() {
-    const now = parseDate(today());
-    let start = parseDate(settings.pregnancyStart);
-    const due = parseDate(settings.dueDate);
-    if (!start && due) { start = new Date(due); start.setDate(start.getDate()-280); }
+    const startValue = settings.pregnancyStart || (settings.dueDate ? shiftDate(settings.dueDate,-280) : '');
+    const start = parseDate(startValue);
     if (!start) return null;
-    const days = Math.floor((now-start)/86400000);
-    return {start,days,week:Math.floor(days/7),day:days%7,due:settings.dueDate?parseDate(settings.dueDate):new Date(start.getTime()+280*86400000)};
+    const startString = localDate(start);
+    const days = dateOrdinal(today()) - dateOrdinal(startString);
+    const dueString = settings.dueDate || shiftDate(startString,280);
+    return {start, startString, days, week:Math.floor(days/7), day:((days%7)+7)%7, due:parseDate(dueString), dueString};
+  }
+  function renderPregnancySummary() {
+    const info = pregnancyInfo();
+    if (!info || info.days < 0 || info.days > 315) {
+      const label = (info && info.days < 0) ? 'Проверь даты беременности' : 'Настроить календарь беременности';
+      return `<button type="button" class="panel pregnancy-summary pregnancy-summary-empty" data-view-link="pregnancy"><span class="pregnancy-summary-icon">♡</span><span class="pregnancy-summary-body"><small>КАЛЕНДАРЬ БЕРЕМЕННОСТИ</small><strong>${label}</strong><span>Укажи дату — срок и недели будут обновляться автоматически</span></span><span class="pregnancy-summary-arrow">Открыть →</span></button>`;
+    }
+    const left = dateOrdinal(info.dueString) - dateOrdinal(today());
+    const dueLabel = fmtDate(info.dueString,{day:'numeric',month:'long'});
+    const leftLabel = left >= 0 ? (left===0 ? 'ориентир ПДР сегодня' : 'до ПДР ' + left + ' дн.') : 'ПДР прошла на ' + Math.abs(left) + ' дн.';
+    return `<button type="button" class="panel pregnancy-summary" data-view-link="pregnancy"><span class="pregnancy-summary-icon">♡</span><span class="pregnancy-summary-body"><small>КАЛЕНДАРЬ БЕРЕМЕННОСТИ</small><strong>${weekText(info.week)} ${info.day} дн.</strong><span>${info.week+1}-я неделя календаря · ПДР ${esc(dueLabel)} · ${leftLabel}</span></span><span class="pregnancy-summary-arrow">Открыть →</span></button>`;
   }
   function renderPregnancy() {
     const p = pregnancyInfo();
     const info = p && p.days >= 0 && p.days <= 315 ? p : null;
-    return `${head('Календарь беременности','Бережный ориентир по неделям',false)}
+    const weekRows = info ? Array.from({length:42},(_,i) => {
+      const from = shiftDate(info.startString,i*7);
+      const through = shiftDate(from,6);
+      const current = i === info.week;
+      const state = current ? 'current' : i < info.week ? 'past' : 'future';
+      const marker = i === 40 ? '<span class="week-marker">Ориентир ПДР</span>' : '';
+      const subtitle = current
+        ? `Сейчас: ${weekText(info.week)} ${info.day} дн. — текущая неделя`
+        : i === 40 ? 'Ориентир около 40 полных недель' : i < info.week ? 'Предыдущая неделя' : 'Будущая неделя';
+      return `<article class="event-item pregnancy-week ${state}"><div class="event-date"><strong>${i+1}</strong><span>неделя</span></div><div class="event-main"><strong>${from ? esc(fmtDate(from,{day:'numeric',month:'short'})) : ''} — ${through ? esc(fmtDate(through,{day:'numeric',month:'short'})) : ''}</strong><div class="event-meta">${subtitle}</div></div>${marker}</article>`;
+    }).join('') : '';
+    return `${head('Календарь беременности','Срок и недели обновляются автоматически',false)}
       <div class="content-grid">
         <section class="pregnancy-hero">
           <span class="tag">Личный календарь</span>
-          ${info ? `<div class="big-week">${info.week} недель ${info.day} дн.</div><h2>${info.week<13?'Первый триместр':info.week<28?'Второй триместр':'Третий триместр'}</h2><p class="muted">Ориентировочная дата родов: <b>${esc(fmtDate(localDate(info.due),{day:'numeric',month:'long',year:'numeric'}))}</b></p><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,info.days/280*100))}%"></div></div><div class="event-meta">Примерно ${Math.max(0,280-info.days)} дней до ПДР по расчёту</div>` : `<h2>Ваш календарь начинается здесь</h2><p class="muted">Укажи первый день последней менструации или предполагаемую дату родов. Расчёт приблизительный.</p>`}
-          <div class="note" style="margin-top:20px">Это календарный ориентир, а не медицинская рекомендация. Сроки и обследования лучше уточнять у врача. Данные сохраняются в защищённом облаке вашего аккаунта.</div>
+          ${info ? `<div class="big-week">${weekText(info.week)} ${info.day} дн.</div><h2>${info.week<13?'Первый триместр':info.week<28?'Второй триместр':'Третий триместр'}</h2><p class="muted">Ориентировочная дата родов: <b>${esc(fmtDate(info.dueString,{day:'numeric',month:'long',year:'numeric'}))}</b></p><div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.max(0,info.days/280*100))}%"></div></div><div class="event-meta">${Math.max(0,280-info.days)} дней до расчётной ПДР</div>` : `<h2>Ваш календарь начинается здесь</h2><p class="muted">Укажи первый день последней менструации или предполагаемую дату родов — приложение само рассчитает недели.</p>`}
+          <div class="note" style="margin-top:20px">Это календарный ориентир, а не медицинская рекомендация. Дату родов и сроки обследований уточняй у врача.</div>
+          <button class="button button-primary" type="button" data-doctor-reminder style="width:100%;margin-top:14px">Напомнить записаться к врачу</button>
         </section>
         <section class="panel section-card">
           <h3 style="margin:0 0 8px">Настройки срока</h3>
@@ -381,7 +419,7 @@
           </form>
         </section>
       </div>
-      ${info ? `<section class="panel section-card" style="margin-top:14px"><h3 style="margin:0 0 8px">Ближайшие недели</h3><div class="item-list">${[0,1,2,3].map(i=>`<div class="event-item"><div class="event-date"><strong>${info.week+i}</strong><span>неделя</span></div><div class="event-main"><strong>${i===0?'Текущая неделя':i===1?'Следующая неделя':'Через '+i+' нед.'}</strong><div class="event-meta">${esc(fmtDate(shiftDate(today(),i*7),{day:'numeric',month:'long'}))} — ориентир для планирования вопросов врачу</div></div></div>`).join('')}</div></section>` : ''}
+      ${info ? `<section class="panel section-card pregnancy-calendar" style="margin-top:14px"><div class="section-top"><h3 style="margin:0">Календарь по неделям</h3><span class="muted">42 недели</span></div><div class="item-list">${weekRows}</div>${info.week>=42 ? '<p class="note" style="margin-top:12px">Срок вышел за пределы отображаемых 42 недель. Уточни дальнейшие действия у врача.</p>' : ''}</section>` : '<section class="panel section-card" style="margin-top:14px"><h3>Сначала укажи дату</h3><p class="muted">После сохранения здесь появятся все недели беременности с календарными датами, а текущий срок будет отображаться на главном экране.</p></section>'}
       `;
   }
   function addItem(category = 'task', date = today()) {
@@ -390,6 +428,7 @@
     $('#dialogTitle').textContent = 'Добавить событие';
     $('#itemCategory').value = categories[category] ? category : 'task';
     $('#itemDate').value = date || today(); $('#itemReminder').value = '0';
+    $('#itemTime').value = ''; $('#itemReminderDate').value = ''; $('#itemReminderTime').value = '';
     $('#saveItemBtn').textContent = 'Сохранить';
     $('#itemDialog').showModal();
     $('#itemTitle').focus();
@@ -403,13 +442,22 @@
     $('#itemDate').value = item.date || today();
     $('#itemTime').value = item.time || '';
     $('#itemNotes').value = item.notes || ''; $('#itemReminder').value = String(item.remindBefore ?? '0');
+    $('#itemReminderDate').value = item.reminderDate || ''; $('#itemReminderTime').value = item.reminderTime || '';
     $('#saveItemBtn').textContent = 'Сохранить изменения';
     $('#itemDialog').showModal();
   }
   function bindView() {
     $$('[data-add]').forEach(b=>b.addEventListener('click',()=>addItem()));
     $$('[data-add-category]').forEach(b=>b.addEventListener('click',()=>addItem(b.dataset.addCategory)));
-    $$('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
+    $('[data-add-date]').forEach(b=>b.addEventListener('click',()=>addItem('task',b.dataset.addDate)));
+    $('[data-doctor-reminder]').forEach(b=>b.addEventListener('click',()=>{
+      const reminderDate = shiftDate(today(),1);
+      addItem('clinic',reminderDate);
+      $('#itemTitle').value = 'Записаться к врачу';
+      $('#itemReminderDate').value = reminderDate;
+      $('#itemReminderTime').value = '09:00';
+      $('#itemReminder').value = '0';
+    }));
     $$('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
     $$('[data-view]', $('#view')).forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
@@ -467,6 +515,7 @@
     $('#signOutBtn').classList.add('hidden');
     $('.push-panel').innerHTML = '<h3>Уведомления</h3><p class="muted">В гостевом режиме облачные push-уведомления недоступны. События и задачи можно вести локально.</p>';
   }
+  $('.brand').addEventListener('click',event=>{ event.preventDefault(); if ($('#settingsDialog').open) $('#settingsDialog').close(); if ($('#itemDialog').open) $('#itemDialog').close(); setView('today'); });
   $('#settingsBtn').addEventListener('click',()=>{ $('#settingsDialog').showModal(); if (!guestMode) refreshPushStatus(); });
   $('#closeSettings').addEventListener('click',()=>$('#settingsDialog').close());
   $('#exportBackup').addEventListener('click',exportBackup);
@@ -480,6 +529,17 @@
   const authForm = $('#authForm');
   if (authForm) authForm.addEventListener('submit', authLogin);
   $('#togglePush').addEventListener('click', togglePushNotifications);
+  $('#resetPasswordBtn')?.addEventListener('click', async ()=>{
+    const email = $('#authEmail')?.value.trim();
+    const status = $('#authStatus');
+    if (!email) { status.textContent = 'Сначала укажи адрес электронной почты.'; $('#authEmail')?.focus(); return; }
+    if (!cloud) { status.textContent = 'Сервис входа пока недоступен. Обнови страницу и попробуй снова.'; return; }
+    try {
+      const {error} = await cloud.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname});
+      if (error) throw error;
+      status.textContent = 'Если адрес зарегистрирован, на него придёт письмо для сброса пароля.';
+    } catch (error) { status.textContent = 'Не удалось отправить письмо для сброса пароля. Попробуй позже.'; }
+  });
   $('#clearAllData').addEventListener('click',()=>{
     if(!confirm('Удалить все события и настройки с этого устройства? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
     items=[]; settings={pregnancyStart:'',dueDate:''};
@@ -517,7 +577,7 @@
         status.textContent = 'Уведомления запрещены в настройках iPhone. Разреши их в настройках сайта.';
         button.textContent = 'Разрешить в настройках iPhone'; button.disabled = false;
       } else {
-        status.textContent = 'Push отправляется сервером по времени события, даже когда планер закрыт.';
+        status.textContent = 'Уведомления пока выключены. Нажми «Включить уведомления», чтобы напоминания приходили и при закрытом планере.';
         button.textContent = 'Включить уведомления'; button.disabled = false;
       }
     } catch {
@@ -554,7 +614,7 @@
         userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
       await callPushFunction({action:'subscribe', subscription:subscription.toJSON(), userAgent:navigator.userAgent});
-      status.textContent = 'Готово! Сервер сможет присылать напоминания по событиям.';
+      status.textContent = 'Уведомления включены. Сервер отправит напоминание в указанную дату и время.';
       button.textContent = 'Отключить уведомления';
     } catch (error) {
       status.textContent = error?.message || 'Не удалось включить уведомления. Попробуй ещё раз.';
@@ -574,7 +634,10 @@
     if (e.submitter?.hasAttribute('data-cancel-item')) return;
     e.preventDefault();
     const title=$('#itemTitle').value.trim();if(!title)return;
-    const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,notes:$('#itemNotes').value.trim(),remindBefore:Number($('#itemReminder').value)||0};
+    const reminderDate=$('#itemReminderDate').value;
+    const reminderTime=$('#itemReminderTime').value;
+    if(reminderTime && !reminderDate){alert('Чтобы задать отдельное время напоминания, сначала укажи дату напоминания.');$('#itemReminderDate').focus();return;}
+    const payload={title,category:$('#itemCategory').value,date:$('#itemDate').value||today(),time:$('#itemTime').value,reminderDate,reminderTime:reminderDate?(reminderTime||'09:00'):'',notes:$('#itemNotes').value.trim(),remindBefore:reminderDate?0:(Number($('#itemReminder').value)||0)};
     if(editingId) { const old=items.find(x=>x.id===editingId); if(old)Object.assign(old,payload); }
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
     saveItems();editingId=null;itemDialog.close();render();
@@ -588,6 +651,17 @@
     window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   }
   render();
+  function openNotificationEvent() {
+    const eventId = new URLSearchParams(location.search).get('event');
+    if (!eventId) return;
+    const item = items.find(x=>x.id===eventId);
+    if (!item) return;
+    selectedDate = item.date || today();
+    const d = parseDate(selectedDate);
+    if (d) calendarMonth = new Date(d.getFullYear(),d.getMonth(),1);
+    setView('calendar');
+  }
+  openNotificationEvent();
   function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
       if (nextSession) { if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession); }
