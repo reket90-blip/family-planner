@@ -15,7 +15,14 @@
   let activeCloudUserId = null;
   let syncTimer = null;
   const $ = (selector, root = document) => root.querySelector(selector);
-  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const $ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  // Keep primary navigation responsive even if a view's own controls fail to bind.
+  document.addEventListener('click', event => {
+    const tab = event.target.closest?.('.tabs .tab[data-view]');
+    if (!tab) return;
+    event.preventDefault();
+    setView(tab.dataset.view);
+  }, true);
   const today = () => { const d = new Date(); return localDate(d); };
   const localDate = d => [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
   const parseDate = value => { const [y,m,d] = String(value || '').split('-').map(Number); return y && m && d ? new Date(y,m-1,d,12) : null; };
@@ -572,7 +579,6 @@
     else items.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2),...payload,done:false,createdAt:new Date().toISOString()});
     saveItems();editingId=null;itemDialog.close();render();
   });
-  $$('.tab').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
   window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;$('#installBtn').classList.remove('hidden');});
   $('#installBtn').addEventListener('click',async()=>{
     if(!deferredPrompt){alert('На iPhone открой сайт в Safari, нажми «Поделиться» и выбери «На экран Домой».');return;}
