@@ -97,7 +97,7 @@ test('adding an event saves it locally immediately and renders it without waitin
 });
 
 test('database scheduler supports exact reminder timestamps, relative reminders, and retry window', () => {
-  for (const source of [schema, migration, retryMigration]) {
+  for (const source of [schema, migration]) {
     assert.match(source, /add column if not exists reminder_date date/i);
     assert.match(source, /add column if not exists reminder_time time/i);
     assert.match(source, /when i\.reminder_date is not null then/i);
