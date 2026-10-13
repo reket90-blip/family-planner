@@ -13,6 +13,7 @@ const worker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
 const manifest = fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8');
 const schema = fs.readFileSync(path.join(root, 'supabase/schema.sql'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261013152214_add_absolute_reminder_schedule.sql'), 'utf8');
+const anonymousMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261013160000_allow_anonymous_planner_users.sql'), 'utf8');
 
 function extractDateOrdinal() {
   const match = app.match(/const dateOrdinal = value => \{[\s\S]*?\n  \};/);
@@ -63,15 +64,34 @@ test('pregnancy weeks are displayed on Today and in a 42-week calendar', () => {
   assert.match(app, /type="date" name="dueDate"/);
 });
 
-test('the planner opens without asking for an email or password', () => {
+test('the planner opens without email and attempts private anonymous cloud sign-in', () => {
   assert.match(html, /id="authGate" class="auth-gate hidden" aria-hidden="true"/);
   assert.match(html, /id="appShell"/);
-  assert.match(app, /const guestMode = true/);
-  assert.doesNotMatch(manifest, /guest=1/);
+  assert.match(app, /const guestMode = false/);
+  assert.match(app, /cloud\.auth\.signInAnonymously/);
+  assert.match(app, /Почта не нужна/);
+  assert.match(app, /Сохранено на устройстве/);
+  assert.doesNotMatch(html, /id="signUpForm"|id="registerForm"/);
 });
 test('the top brand returns to Today and public registration stays absent', () => {
   assert.match(app, /\$\('\.brand'\)\.addEventListener\('click'.*setView\('today'\)/);
   assert.doesNotMatch(html, /id="signUpForm"|id="registerForm"/);
+});
+
+test('anonymous planner sessions can use the private per-user data policies', () => {
+  for (const source of [schema, anonymousMigration]) {
+    assert.match(source, /auth\.jwt\(\)\s*->>\s*'is_anonymous'/i);
+    assert.match(source, /planner_allowed_users/);
+  }
+  assert.match(app, /if \(!guestMode\) queueCloudSync\(\)/);
+  assert.match(app, /localStorage\.setItem\(STORE_KEY, JSON\.stringify\(items\)\)/);
+});
+
+test('adding an event saves it locally immediately and renders it without waiting for the cloud', () => {
+  assert.match(app, /\$\('#itemForm'\)\.addEventListener\('submit'/);
+  assert.match(app, /items\.push\(\{id:crypto\.randomUUID/);
+  assert.match(app, /saveItems\(\);editingId=null;itemDialog\.close\(\);render\(\)/);
+  assert.match(app, /function openNotificationEvent/);
 });
 
 test('database scheduler supports exact reminder timestamps and relative reminders', () => {
@@ -85,7 +105,7 @@ test('database scheduler supports exact reminder timestamps and relative reminde
 });
 
 test('service worker invalidates old cache, refreshes app.js, and opens the event referenced by a push', () => {
-  assert.match(worker, /family-planner-v13/);
+  assert.match(worker, /family-planner-v14/);
   assert.match(worker, /app\.js\?v=20261013-9/);
   assert.match(html, /app\.js\?v=20261013-9/);
   assert.match(app, /new URLSearchParams\(location\.search\)\.get\('event'\)/);
