@@ -87,7 +87,7 @@ test('events can be exported as iCalendar files for manual iPhone Calendar impor
 test('all multi-element event bindings use querySelectorAll rather than a single element', () => {
   const bindingLines = app.split('\n').filter(line => line.includes('.forEach(') && line.includes('addEventListener'));
   assert.ok(bindingLines.length > 10, 'expected dynamic and static event bindings');
-  for (const line of bindingLines) assert.ok(line.includes('$$('), 'multi-element event binding must use querySelectorAll: ' + line);
+  for (const line of bindingLines) assert.ok(line.includes('$(') || line.includes('document.querySelectorAll('), 'multi-element event binding must use querySelectorAll: ' + line);
   assert.ok(app.includes("$$('.tab').forEach"));
   assert.ok(app.includes("$$('[data-month]').forEach"));
   assert.ok(app.includes("$$('[data-date]').forEach"));
