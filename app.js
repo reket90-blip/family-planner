@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  // Публичной регистрации нет: используем только ранее приглашённый аккаунт.
-  const guestMode = true;
+  // No email form: create a private anonymous Supabase session for this browser.
+  const guestMode = false;
   const STORE_KEY = 'family-planner-guest-items-v1';
   const SETTINGS_KEY = 'family-planner-guest-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
@@ -106,24 +106,19 @@
     }
   }
   async function syncFromCloud(nextSession) {
-    if (guestMode || !cloud || !nextSession?.user?.id || syncingCloud || activeCloudUserId === nextSession.user.id && cloudSyncReady) return;
+    if (!cloud || !nextSession?.user?.id || syncingCloud || activeCloudUserId === nextSession.user.id && cloudSyncReady) return;
     syncingCloud = true;
     session = nextSession;
     activeCloudUserId = nextSession.user.id;
-    $('#authGate').classList.remove('hidden');
-    $('#authGate').setAttribute('aria-hidden','false');
-    $('#appShell').classList.add('hidden');
-    $('#authStatus').textContent = 'Проверяем доступ к личному планеру…';
-    $('#saveStatus').textContent = 'Загружаем защищённые данные…';
+    $('#authGate').classList.add('hidden');
+    $('#authGate').setAttribute('aria-hidden','true');
+    $('#appShell').classList.remove('hidden');
+    $('#authStatus').textContent = '';
+    $('#saveStatus').textContent = 'Синхронизируем записи с облаком…';
     try {
       const { data: allowed, error: allowError } = await cloud.rpc('is_planner_allowed_user');
       if (allowError) throw allowError;
-      if (allowed !== true) {
-        $('#authStatus').textContent = 'Этот аккаунт не приглашён в личный планер.';
-        await cloud.auth.signOut();
-        showSignedOut();
-        return;
-      }
+      if (allowed !== true) throw new Error('planner_access_denied');
       const [itemsResult, settingsResult] = await Promise.all([
         cloud.from('planner_items').select('*').order('event_date', {ascending:true}),
         cloud.from('planner_settings').select('*').eq('user_id', session.user.id).maybeSingle()
@@ -170,26 +165,33 @@
       refreshPushStatus();
     } catch (error) {
       cloudSyncReady = false;
-      $('#appShell').classList.add('hidden');
-      $('#authGate').classList.remove('hidden');
-      $('#authGate').setAttribute('aria-hidden','false');
-      $('#saveStatus').textContent = 'Не удалось загрузить облачные записи';
-      $('#authStatus').textContent = 'Вход выполнен, но облако пока недоступно. Проверь подключение и обнови страницу.';
-      console.error('Planner initial cloud sync failed', error);
+      $('#appShell').classList.remove('hidden');
+      $('#authGate').classList.add('hidden');
+      $('#authGate').setAttribute('aria-hidden','true');
+      $('#saveStatus').textContent = 'Сохранено на устройстве · синхронизация не удалась';
+      const intro = $('.settings-intro');
+      if (intro) intro.textContent = 'Планер не просит почту. Пока облако недоступно, записи остаются в этом браузере; push-напоминания не активны.';
+      const pushStatus = $('#pushStatus');
+      if (pushStatus) pushStatus.textContent = 'Push-уведомления не подключены: облачная синхронизация не готова.';
+      const pushButton = $('#togglePush');
+      if (pushButton) pushButton.disabled = true;
+      const testButton = $('#testPush');
+      if (testButton) testButton.classList.add('hidden');
+      render();
+      console.error('Planner cloud sync failed; keeping local planner available', error);
     } finally {
       syncingCloud = false;
     }
   }
   function showSignedOut() {
-    if (guestMode) return;
     session = null;
     cloudSyncReady = false;
     syncingCloud = false;
     activeCloudUserId = null;
-    $('#appShell').classList.add('hidden');
-    $('#authGate').classList.remove('hidden');
-    $('#authGate').setAttribute('aria-hidden','false');
-    $('#authPassword').value = '';
+    $('#appShell').classList.remove('hidden');
+    $('#authGate').classList.add('hidden');
+    $('#authGate').setAttribute('aria-hidden','true');
+    $('#saveStatus').textContent = 'Сохраняется на этом устройстве';
   }
   async function authLogin(event) {
     event.preventDefault();
@@ -578,7 +580,7 @@
     $('#saveStatus').textContent='Записи удалены с устройства и из облака';
   });
   async function callPushFunction(payload) {
-    if (guestMode || !cloud || !session) throw new Error('В гостевом режиме облачные уведомления недоступны');
+    if (!cloud || !session || !cloudSyncReady) throw new Error('Облачное подключение не готово — push-уведомления пока недоступны');
     const {data, error} = await cloud.functions.invoke('push-notifications', {body: payload});
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
@@ -595,6 +597,13 @@
     const button = $('#togglePush');
     const testButton = $('#testPush');
     if (!status || !button) return;
+    if (!cloudSyncReady || !cloud || !session) {
+      status.textContent = 'Облако не подключено — push-уведомления недоступны.';
+      button.disabled = true;
+      if (testButton) testButton.classList.add('hidden');
+      return;
+    }
+    button.disabled = false;
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       status.textContent = 'Этот браузер не поддерживает push-уведомления.';
       button.disabled = true; if (testButton) testButton.classList.add('hidden'); return;
@@ -623,8 +632,7 @@
   async function togglePushNotifications() {
     const button = $('#togglePush');
     const status = $('#pushStatus');
-    if (guestMode) { status.textContent = 'В гостевом режиме облачные уведомления недоступны.'; return; }
-    if (!cloud || !session) { status.textContent = 'Сначала войди в планер.'; return; }
+    if (!cloudSyncReady || !cloud || !session) { status.textContent = 'Облако ещё не подключено. Обнови страницу при наличии интернета.'; return; }
     button.disabled = true;
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -701,14 +709,45 @@
   openNotificationEvent();
   function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
-      if (nextSession) { if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession); }
-      else if (event === 'SIGNED_OUT') showSignedOut();
+      if (nextSession) {
+        if (event !== 'INITIAL_SESSION' || !activeCloudUserId) syncFromCloud(nextSession);
+      } else if (event === 'SIGNED_OUT') showSignedOut();
     });
-    cloud.auth.getSession().then(({data}) => {
-      if (data.session) syncFromCloud(data.session);
-      else showSignedOut();
-    }).catch(() => showSignedOut());
+    cloud.auth.getSession().then(async ({data, error}) => {
+      if (error) throw error;
+      if (data.session) {
+        await syncFromCloud(data.session);
+        return;
+      }
+      const {data: anonymous, error: anonymousError} = await cloud.auth.signInAnonymously({
+        options: {data: {planner: 'family-planner'}}
+      });
+      if (anonymousError) throw anonymousError;
+      if (!anonymous.session) throw new Error('anonymous_session_missing');
+      await syncFromCloud(anonymous.session);
+    }).catch(error => {
+      cloudSyncReady = false;
+      $('#authGate').classList.add('hidden');
+      $('#authGate').setAttribute('aria-hidden','true');
+      $('#appShell').classList.remove('hidden');
+      $('#saveStatus').textContent = 'Сохранено на устройстве · облако не подключено';
+      const intro = $('.settings-intro');
+      if (intro) intro.textContent = 'Почта не нужна. Сейчас записи сохраняются в этом браузере. Для синхронизации и push-напоминаний требуется разрешённый анонимный вход в облако.';
+      const pushStatus = $('#pushStatus');
+      if (pushStatus) pushStatus.textContent = 'Push-уведомления недоступны, пока облачный вход не подключён.';
+      const pushButton = $('#togglePush');
+      if (pushButton) pushButton.disabled = true;
+      const testButton = $('#testPush');
+      if (testButton) testButton.classList.add('hidden');
+      console.error('Planner anonymous cloud sign-in failed', error);
+    });
   }
-  if (!guestMode && cloud) initializeAuth();
-  else if (!cloud) $('#authStatus').textContent = 'Не удалось загрузить модуль входа. Проверь подключение к интернету и обнови страницу.';
+  if (cloud) initializeAuth();
+  else {
+    $('#authGate').classList.add('hidden');
+    $('#authGate').setAttribute('aria-hidden','true');
+    $('#appShell').classList.remove('hidden');
+    $('#saveStatus').textContent = 'Сохранено на устройстве · облачный модуль недоступен';
+  }
+  $('#signOutBtn').classList.add('hidden');
 })();
