@@ -10,6 +10,7 @@ const root = path.resolve(__dirname, '..');
 const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');
+const manifest = fs.readFileSync(path.join(root, 'manifest.webmanifest'), 'utf8');
 const schema = fs.readFileSync(path.join(root, 'supabase/schema.sql'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261013152214_add_absolute_reminder_schedule.sql'), 'utf8');
 
@@ -80,10 +81,13 @@ test('database scheduler supports exact reminder timestamps and relative reminde
   }
 });
 
-test('service worker invalidates old cache and opens the event referenced by a push', () => {
+test('service worker invalidates old cache, refreshes app.js, and opens the event referenced by a push', () => {
   assert.match(worker, /family-planner-v12/);
-  assert.match(worker, /client\.navigate\(target\)/);
-  assert.match(app, /new URLSearchParams\(location\.search\)\.get\('event'\)/);
+  assert.match(worker, /app\\.js\\?v=20261013-7/);
+  assert.match(html, /app\\.js\\?v=20261013-7/);
+  assert.match(app, /new URLSearchParams\\(location\\.search\\)\\.get\\('event'\\)/);
+  assert.match(manifest, /"start_url": "\.\/"\\n/);
+  assert.doesNotMatch(manifest, /guest=1/);
 });
 
 test('push controls expose a real server-side test action', () => {
