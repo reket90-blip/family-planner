@@ -58,8 +58,8 @@ test('pregnancy weeks are displayed on Today and in a 42-week calendar', () => {
   assert.match(app, /\$\{renderPregnancySummary\(\)\}/);
   assert.match(app, /Array\.from\(\{length:42\}/);
   assert.match(app, /data-doctor-reminder/);
-  assert.match(html, /type="date" name="pregnancyStart"/);
-  assert.match(html, /type="date" name="dueDate"/);
+  assert.match(app, /type="date" name="pregnancyStart"/);
+  assert.match(app, /type="date" name="dueDate"/);
 });
 
 test('the top brand returns to Today and there is no registration form', () => {
