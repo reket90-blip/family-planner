@@ -4,7 +4,7 @@
   "short_name": "Наш планер",
   "description": "Семейный календарь, дела, платежи и календарь беременности",
   "lang": "ru",
-  "start_url": "./?guest=1",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
