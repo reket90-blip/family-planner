@@ -499,8 +499,8 @@
       $('#itemReminderTime').value = '09:00';
       $('#itemReminder').value = '0';
     }));
-    $('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
-    $('[data-open-push-settings]').forEach(b=>b.addEventListener('click',()=>{ $('#settingsDialog').showModal(); refreshPushStatus(); }));
+    document.querySelectorAll('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
+    document.querySelectorAll('[data-open-push-settings]').forEach(b=>b.addEventListener('click',()=>{ $('#settingsDialog').showModal(); refreshPushStatus(); }));
     $$('[data-view]', $('#view')).forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
     $$('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
