@@ -776,8 +776,8 @@
   }
   function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
-      if (nextSession && (event !== 'INITIAL_SESSION' || !activeCloudUserId)) {
-        // Supabase auth callbacks run synchronously; defer network work to avoid auth-lock deadlocks.
+      if (nextSession && !authAttemptInProgress && (event !== 'INITIAL_SESSION' || !activeCloudUserId)) {
+        // The explicit connection flow handles sign-in while it is running.
         Promise.resolve().then(() => syncFromCloud(nextSession));
       } else if (event === 'SIGNED_OUT') showSignedOut();
     });
