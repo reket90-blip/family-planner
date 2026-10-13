@@ -76,7 +76,7 @@
   }
   const isUuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
   function dbItem(item) {
-    if (!isUuid(item.id)) item.id = crypto.randomUUID();
+    if (!isUuid(item.id)) item.id = crypto.randomUUID ? crypto.randomUUID() : ('xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&3|8)).toString(16); }));
     return {
       id: item.id, user_id: session.user.id, title: item.title, category: item.category || 'task',
       event_date: item.date || today(), event_time: item.time || null,
@@ -111,6 +111,7 @@
     session = nextSession;
     activeCloudUserId = nextSession.user.id;
     $('#authGate').classList.add('hidden');
+    $('#authGate').setAttribute('aria-hidden','true');
     $('#appShell').classList.remove('hidden');
     $('#authStatus').textContent = '';
     $('#saveStatus').textContent = 'Загружаем защищённые данные…';
@@ -173,6 +174,7 @@
     activeCloudUserId = null;
     $('#appShell').classList.add('hidden');
     $('#authGate').classList.remove('hidden');
+    $('#authGate').setAttribute('aria-hidden','false');
     $('#authPassword').value = '';
   }
   async function authLogin(event) {
@@ -529,6 +531,15 @@
   const authForm = $('#authForm');
   if (authForm) authForm.addEventListener('submit', authLogin);
   $('#togglePush').addEventListener('click', togglePushNotifications);
+  $('#testPush')?.addEventListener('click', async ()=>{
+    const button=$('#testPush'), status=$('#pushStatus');
+    button.disabled=true; status.textContent='Отправляем тестовое уведомление…';
+    try {
+      const result=await callPushFunction({action:'test'});
+      status.textContent=result?.sent ? 'Тест отправлен на устройство. Проверь экран блокировки или Центр уведомлений.' : 'Сервер не подтвердил отправку теста.';
+    } catch(error) { status.textContent=error?.message || 'Не удалось отправить тестовое уведомление.'; }
+    finally { button.disabled=false; }
+  });
   $('#resetPasswordBtn')?.addEventListener('click', async ()=>{
     const email = $('#authEmail')?.value.trim();
     const status = $('#authStatus');
@@ -540,11 +551,17 @@
       status.textContent = 'Если адрес зарегистрирован, на него придёт письмо для сброса пароля.';
     } catch (error) { status.textContent = 'Не удалось отправить письмо для сброса пароля. Попробуй позже.'; }
   });
-  $('#clearAllData').addEventListener('click',()=>{
-    if(!confirm('Удалить все события и настройки с этого устройства? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
+  $('#clearAllData').addEventListener('click',async()=>{
+    if(!confirm('Удалить все события и настройки этого планера? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
     items=[]; settings={pregnancyStart:'',dueDate:''};
-    saveItems(); saveSettings(); $('#settingsDialog').close(); render();
-    $('#saveStatus').textContent='Локальные записи удалены';
+    saveItems(); saveSettings();
+    if (cloudSyncReady && session?.user?.id) {
+      const userId=session.user.id;
+      const {error}=await cloud.from('planner_items').delete().eq('user_id',userId);
+      if (error) { $('#saveStatus').textContent='Не удалось удалить записи из облака'; return; }
+    }
+    $('#settingsDialog').close(); render();
+    $('#saveStatus').textContent='Записи удалены с устройства и из облака';
   });
   async function callPushFunction(payload) {
     if (guestMode || !cloud || !session) throw new Error('В гостевом режиме облачные уведомления недоступны');
@@ -562,10 +579,11 @@
   async function refreshPushStatus() {
     const status = $('#pushStatus');
     const button = $('#togglePush');
+    const testButton = $('#testPush');
     if (!status || !button) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       status.textContent = 'Этот браузер не поддерживает push-уведомления.';
-      button.disabled = true; return;
+      button.disabled = true; if (testButton) testButton.classList.add('hidden'); return;
     }
     try {
       const registration = await navigator.serviceWorker.ready;
@@ -573,16 +591,19 @@
       if (subscription) {
         status.textContent = (typeof Notification !== 'undefined' && Notification.permission === 'granted') ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
         button.textContent = 'Отключить уведомления'; button.disabled = false;
+        if (testButton) testButton.classList.remove('hidden');
       } else if (Notification.permission === 'denied') {
         status.textContent = 'Уведомления запрещены в настройках iPhone. Разреши их в настройках сайта.';
         button.textContent = 'Разрешить в настройках iPhone'; button.disabled = false;
+        if (testButton) testButton.classList.add('hidden');
       } else {
         status.textContent = 'Уведомления пока выключены. Нажми «Включить уведомления», чтобы напоминания приходили и при закрытом планере.';
         button.textContent = 'Включить уведомления'; button.disabled = false;
+        if (testButton) testButton.classList.add('hidden');
       }
     } catch {
       status.textContent = 'Сначала добавь планер на экран «Домой» и открой его с иконки.';
-      button.disabled = false;
+      button.disabled = false; if (testButton) testButton.classList.add('hidden');
     }
   }
   async function togglePushNotifications() {
@@ -602,6 +623,7 @@
         await existing.unsubscribe();
         status.textContent = 'Уведомления отключены на этом устройстве.';
         button.textContent = 'Включить уведомления';
+        $('#testPush')?.classList.add('hidden');
         return;
       }
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -616,6 +638,7 @@
       await callPushFunction({action:'subscribe', subscription:subscription.toJSON(), userAgent:navigator.userAgent});
       status.textContent = 'Уведомления включены. Сервер отправит напоминание в указанную дату и время.';
       button.textContent = 'Отключить уведомления';
+      $('#testPush')?.classList.remove('hidden');
     } catch (error) {
       status.textContent = error?.message || 'Не удалось включить уведомления. Попробуй ещё раз.';
     } finally { button.disabled = false; }
