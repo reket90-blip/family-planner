@@ -42,6 +42,7 @@
   let filter = 'all';
   let editingId = null;
   let deferredPrompt = null;
+  let pushDeviceStatus = 'unknown';
 
   function loadItems() {
     try { const value = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); return Array.isArray(value) ? value.filter(x => x && typeof x.id === 'string' && typeof x.title === 'string') : seed; }
@@ -298,6 +299,27 @@
     else if (currentView === 'pregnancy') view.innerHTML = renderPregnancy();
     bindView();
   }
+  function renderPushPrompt() {
+    if (!cloudSyncReady || !session || pushDeviceStatus === 'enabled') return '';
+    let message = 'Чтобы напоминания приходили на телефон, один раз включи push-уведомления для этого браузера.';
+    let buttonText = 'Включить push';
+    if (pushDeviceStatus === 'denied') {
+      message = /iphone|ipad|ipod/i.test(navigator.userAgent)
+        ? 'Уведомления заблокированы в настройках Safari. Разреши уведомления для этого сайта и вернись сюда.'
+        : 'Chrome заблокировал уведомления. Разреши их для этого сайта в настройках Android/Chrome, затем вернись и повтори.';
+      buttonText = 'Проверить настройки';
+    } else if (pushDeviceStatus === 'unsupported') {
+      message = 'Этот браузер не поддерживает Web Push. Открой планер в актуальном Chrome на Android.';
+      buttonText = 'Проверить поддержку';
+    } else if (pushDeviceStatus === 'unavailable') {
+      message = 'Не удалось проверить подключение push. Открой настройки уведомлений и повтори проверку.';
+      buttonText = 'Проверить подключение';
+    }
+    return `<section class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:220px"><h3 style="margin:0 0 6px">Напоминания на телефон</h3><p class="muted" style="margin:0">${message}</p></div>
+      <button class="button button-primary" type="button" data-open-push-settings>${buttonText}</button>
+    </section>`;
+  }
   function renderToday() {
     const d = parseDate(today());
     $('#todayLabel').textContent = new Intl.DateTimeFormat('ru-RU',{weekday:'long',day:'numeric',month:'long'}).format(d).toLocaleUpperCase('ru-RU');
@@ -307,6 +329,7 @@
     const dates = items.filter(x => !x.done && x.category === 'family' && x.date >= today()).length;
     const duePayments = items.filter(x => !x.done && x.category === 'payment' && x.date <= shiftDate(today(),7) && x.date >= today()).length;
     return `
+      ${renderPushPrompt()}
       ${renderPregnancySummary()}
       <div class="stats">
         <div class="panel stat"><div class="stat-label">Дела на сегодня</div><div class="stat-number">${todayItems.filter(x=>!x.done).length}</div><div class="stat-note">Шаг за шагом</div></div>
@@ -476,7 +499,8 @@
       $('#itemReminderTime').value = '09:00';
       $('#itemReminder').value = '0';
     }));
-    $$('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
+    $('[data-view-link]').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.viewLink)));
+    $('[data-open-push-settings]').forEach(b=>b.addEventListener('click',()=>{ $('#settingsDialog').showModal(); refreshPushStatus(); }));
     $$('[data-view]', $('#view')).forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
     $$('[data-edit]').forEach(b=>b.addEventListener('click',()=>editItem(b.dataset.edit)));
     $$('[data-ics]').forEach(b=>b.addEventListener('click',()=>exportCalendarEvent(b.dataset.ics)));
@@ -592,12 +616,18 @@
     const raw = atob(base64);
     return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
   }
+  function setPushDeviceStatus(next) {
+    if (pushDeviceStatus === next) return;
+    pushDeviceStatus = next;
+    if (cloudSyncReady && currentView === 'today') render();
+  }
   async function refreshPushStatus() {
     const status = $('#pushStatus');
     const button = $('#togglePush');
     const testButton = $('#testPush');
     if (!status || !button) return;
     if (!cloudSyncReady || !cloud || !session) {
+      setPushDeviceStatus('unknown');
       status.textContent = 'Облако не подключено — push-уведомления недоступны.';
       button.disabled = true;
       if (testButton) testButton.classList.add('hidden');
@@ -605,27 +635,34 @@
     }
     button.disabled = false;
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      status.textContent = 'Этот браузер не поддерживает push-уведомления.';
+      setPushDeviceStatus('unsupported');
+      status.textContent = 'Этот браузер не поддерживает push-уведомления. Открой планер в актуальном Chrome на Android.';
       button.disabled = true; if (testButton) testButton.classList.add('hidden'); return;
     }
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) {
+        setPushDeviceStatus('enabled');
         status.textContent = (typeof Notification !== 'undefined' && Notification.permission === 'granted') ? 'Уведомления включены на этом устройстве.' : 'Подписка найдена, но разрешение браузера не выдано.';
         button.textContent = 'Отключить уведомления'; button.disabled = false;
         if (testButton) testButton.classList.remove('hidden');
       } else if (Notification.permission === 'denied') {
-        status.textContent = 'Уведомления запрещены в настройках iPhone. Разреши их в настройках сайта.';
-        button.textContent = 'Разрешить в настройках iPhone'; button.disabled = false;
+        setPushDeviceStatus('denied');
+        status.textContent = /iphone|ipad|ipod/i.test(navigator.userAgent)
+          ? 'Уведомления заблокированы в Safari. Разреши уведомления для сайта в настройках iPhone.'
+          : 'Уведомления заблокированы в Chrome/Android. Открой настройки сайта в Chrome → Настройки сайтов → Уведомления и разреши их для этого сайта.';
+        button.textContent = 'Разрешение заблокировано'; button.disabled = true;
         if (testButton) testButton.classList.add('hidden');
       } else {
-        status.textContent = 'Уведомления пока выключены. Нажми «Включить уведомления», чтобы напоминания приходили и при закрытом планере.';
+        setPushDeviceStatus('disabled');
+        status.textContent = 'Уведомления пока выключены. Нажми «Включить уведомления», затем разреши их браузеру. После подключения отправим тестовый push.';
         button.textContent = 'Включить уведомления'; button.disabled = false;
         if (testButton) testButton.classList.add('hidden');
       }
     } catch {
-      status.textContent = 'Сначала добавь планер на экран «Домой» и открой его с иконки.';
+      setPushDeviceStatus('unavailable');
+      status.textContent = 'Не удалось запустить модуль push. Обнови страницу; на Android используй актуальный Chrome и проверь разрешения сайта.';
       button.disabled = false; if (testButton) testButton.classList.add('hidden');
     }
   }
@@ -644,6 +681,7 @@
         await callPushFunction({action:'unsubscribe', endpoint:existing.endpoint});
         await existing.unsubscribe();
         status.textContent = 'Уведомления отключены на этом устройстве.';
+        setPushDeviceStatus('disabled');
         button.textContent = 'Включить уведомления';
         $('#testPush')?.classList.add('hidden');
         return;
@@ -658,9 +696,18 @@
         userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey)
       });
       await callPushFunction({action:'subscribe', subscription:subscription.toJSON(), userAgent:navigator.userAgent});
-      status.textContent = 'Уведомления включены. Сервер отправит напоминание в указанную дату и время.';
+      setPushDeviceStatus('enabled');
       button.textContent = 'Отключить уведомления';
       $('#testPush')?.classList.remove('hidden');
+      status.textContent = 'Подписка сохранена. Отправляем контрольное уведомление…';
+      try {
+        const testResult = await callPushFunction({action:'test'});
+        if (!testResult?.sent) throw new Error('Сервер не подтвердил отправку тестового push.');
+        status.textContent = 'Тестовый push отправлен. Проверь уведомления Android; теперь можно проверять напоминания по времени события.';
+      } catch (testError) {
+        console.error('Push subscription saved but test delivery failed', testError);
+        status.textContent = 'Подписка сохранена, но тестовая доставка не подтверждена. Проверь разрешения сайта и кнопку «Отправить тестовое уведомление».';
+      }
     } catch (error) {
       status.textContent = error?.message || 'Не удалось включить уведомления. Попробуй ещё раз.';
     } finally { button.disabled = false; }
