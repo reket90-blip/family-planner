@@ -1,37 +1,14 @@
 (() => {
   'use strict';
-  // Public guest mode uses separate local-only storage and never reads or writes private cloud data.
-  // Open directly into guest mode by default; authenticated access is an explicit route.
-  const guestMode = new URLSearchParams(location.search).get('login') !== '1';
-  const STORE_KEY = guestMode ? 'family-planner-guest-items-v1' : 'family-planner-items-v1';
-  const SETTINGS_KEY = guestMode ? 'family-planner-guest-settings-v1' : 'family-planner-settings-v1';
+  // Планер сразу открывается без входа; данные хранятся локально на устройстве.
+  const guestMode = true;
+  const STORE_KEY = 'family-planner-guest-items-v1';
+  const SETTINGS_KEY = 'family-planner-guest-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
   const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_bJPp8as_zZqo5NWVJVacaA_GGkDU86b';
-  const createCloudClient = () => window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  const cloud = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   }) || null;
-  let cloud = createCloudClient();
-  async function ensureCloudClient() {
-    if (cloud) return cloud;
-    await new Promise((resolve, reject) => {
-      let script = document.querySelector('script[data-supabase-loader]');
-      if (!script) {
-        script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-        script.async = true;
-        script.dataset.supabaseLoader = 'true';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-      } else {
-        script.addEventListener('load', resolve, { once: true });
-        script.addEventListener('error', reject, { once: true });
-      }
-    });
-    cloud = createCloudClient();
-    if (!cloud) throw new Error('Не удалось загрузить модуль входа');
-    return cloud;
-  }
   let session = null;
   let cloudSyncReady = false;
   let syncingCloud = false;
@@ -194,7 +171,7 @@
     submit.disabled = true;
     $('#authStatus').textContent = 'Подключаем вход…';
     try {
-      if (!cloud) await ensureCloudClient();
+      if (!cloud) throw new Error('Модуль входа недоступен');
       $('#authStatus').textContent = 'Входим…';
       const {data, error} = await cloud.auth.signInWithPassword({
         email: $('#authEmail').value.trim(), password: $('#authPassword').value
@@ -476,7 +453,7 @@
     render();window.scrollTo({top:0,behavior:'smooth'});
   }
   if (guestMode) {
-    $('#authGate').classList.add('hidden');
+    if ($('#authGate')) $('#authGate').classList.add('hidden');
     $('#appShell').classList.remove('hidden');
     $('#saveStatus').textContent = 'Гостевой режим — данные только на этом устройстве';
     $('.settings-intro').textContent = 'Гостевой режим: записи сохраняются только в этом браузере на этом устройстве. Они не отправляются в облако и не видны на других телефонах.';
@@ -493,7 +470,8 @@
     if (cloud) await cloud.auth.signOut();
     showSignedOut();
   });
-  $('#authForm').addEventListener('submit', authLogin);
+  const authForm = $('#authForm');
+  if (authForm) authForm.addEventListener('submit', authLogin);
   $('#togglePush').addEventListener('click', togglePushNotifications);
   $('#clearAllData').addEventListener('click',()=>{
     if(!confirm('Удалить все события и настройки с этого устройства? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
@@ -614,10 +592,5 @@
       else showSignedOut();
     }).catch(() => showSignedOut());
   }
-  if (!guestMode) {
-    if (cloud) initializeAuth();
-    else ensureCloudClient().then(initializeAuth).catch(() => {
-      $('#authStatus').textContent = 'Для входа нужен интернет: не удалось загрузить модуль авторизации.';
-    });
-  }
+  if (!guestMode && cloud) initializeAuth();
 })();
