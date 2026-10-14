@@ -170,16 +170,11 @@
       $('#authGate').classList.add('hidden');
       $('#authGate').setAttribute('aria-hidden','true');
       $('#saveStatus').textContent = 'Сохранено на устройстве · синхронизация не удалась';
-      const intro = $('.settings-intro');
-      if (intro) intro.textContent = 'Планер не просит почту. Пока облако недоступно, записи остаются в этом браузере; push-напоминания не активны.';
-      const pushStatus = $('#pushStatus');
-      if (pushStatus) pushStatus.textContent = 'Push-уведомления не подключены: облачная синхронизация не готова.';
-      const pushButton = $('#togglePush');
-      if (pushButton) pushButton.disabled = true;
-      const testButton = $('#testPush');
-      if (testButton) testButton.classList.add('hidden');
-      render();
-      console.error('Planner cloud sync failed; keeping local planner available', error);
+      $('#appShell').classList.add('hidden');
+      $('#authGate').classList.remove('hidden');
+      $('#authGate').setAttribute('aria-hidden','false');
+      $('#authStatus').textContent = 'Не удалось открыть облачный планер. Проверь интернет и попробуй войти снова.';
+      console.error('Planner cloud sync failed', error);
     } finally {
       syncingCloud = false;
     }
@@ -561,7 +556,7 @@
     $('#appShell').classList.remove('hidden');
     $('#saveStatus').textContent = 'Гостевой режим — данные только на этом устройстве';
     $('.settings-intro').textContent = 'Гостевой режим: записи сохраняются только в этом браузере на этом устройстве. Они не отправляются в облако и не видны на других телефонах.';
-    $('#signOutBtn').classList.add('hidden');
+    $('#signOutBtn').classList.remove('hidden');
     $('.push-panel').innerHTML = '<h3>Уведомления</h3><p class="muted">В гостевом режиме облачные push-уведомления недоступны. События и задачи можно вести локально.</p>';
   }
   $('.brand').addEventListener('click',event=>{ event.preventDefault(); if ($('#settingsDialog').open) $('#settingsDialog').close(); if ($('#itemDialog').open) $('#itemDialog').close(); setView('today'); });
@@ -804,10 +799,10 @@
   });
   if (cloud) initializeAuth();
   else {
-    $('#authGate').classList.add('hidden');
-    $('#authGate').setAttribute('aria-hidden','true');
-    $('#appShell').classList.remove('hidden');
-    $('#saveStatus').textContent = 'Сохранено на устройстве · облачный модуль недоступен';
+    $('#appShell').classList.add('hidden');
+    $('#authGate').classList.remove('hidden');
+    $('#authGate').setAttribute('aria-hidden','false');
+    $('#authStatus').textContent = 'Модуль входа не загрузился. Проверь интернет и обнови страницу.';
   }
   $('#signOutBtn').classList.add('hidden');
 })();
