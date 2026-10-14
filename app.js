@@ -804,5 +804,5 @@
     $('#authGate').setAttribute('aria-hidden','false');
     $('#authStatus').textContent = 'Модуль входа не загрузился. Проверь интернет и обнови страницу.';
   }
-  $('#signOutBtn').classList.add('hidden');
+  $('#signOutBtn').classList.remove('hidden');
 })();
