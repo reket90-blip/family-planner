@@ -23,13 +23,13 @@ returns boolean
 language sql
 stable
 set search_path = ''
-as $
+as $planner$
   -- Email-authenticated users get isolated personal data protected by auth.uid() RLS.
   -- Anonymous sessions are no longer accepted for cloud sync or push.
   select auth.uid() is not null
     and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
     and nullif(auth.jwt() ->> 'email', '') is not null
-$;
+$planner$;
 revoke all on function public.is_planner_allowed_user() from public, anon;
 grant execute on function public.is_planner_allowed_user() to authenticated, service_role;
 create or replace function public.allow_planner_user(p_user_id uuid)
