@@ -24,12 +24,11 @@ language sql
 stable
 set search_path = ''
 as $
-  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false)
-    or exists (
-      select 1
-      from private.planner_allowed_users as allowed
-      where allowed.user_id = auth.uid()
-    )
+  -- Email-authenticated users get isolated personal data protected by auth.uid() RLS.
+  -- Anonymous sessions are no longer accepted for cloud sync or push.
+  select auth.uid() is not null
+    and coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false) = false
+    and nullif(auth.jwt() ->> 'email', '') is not null
 $;
 revoke all on function public.is_planner_allowed_user() from public, anon;
 grant execute on function public.is_planner_allowed_user() to authenticated, service_role;
