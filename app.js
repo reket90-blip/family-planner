@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  // No email form: create a private anonymous Supabase session for this browser.
+  // Email-only sign-in: Supabase sends a one-time magic link; no password is required.
   const guestMode = false;
   const STORE_KEY = 'family-planner-guest-items-v1';
   const SETTINGS_KEY = 'family-planner-guest-settings-v1';
@@ -189,26 +189,33 @@
     cloudSyncReady = false;
     syncingCloud = false;
     activeCloudUserId = null;
-    $('#appShell').classList.remove('hidden');
-    $('#authGate').classList.add('hidden');
-    $('#authGate').setAttribute('aria-hidden','true');
-    $('#saveStatus').textContent = 'Сохраняется на этом устройстве';
+    $('#appShell').classList.add('hidden');
+    $('#authGate').classList.remove('hidden');
+    $('#authGate').setAttribute('aria-hidden','false');
+    $('#authStatus').textContent = 'Введи почту — пришлём ссылку для входа без пароля.';
   }
   async function authLogin(event) {
     event.preventDefault();
     const submit = $('#authSubmit');
+    const email = $('#authEmail').value.trim().toLowerCase();
+    if (!email) return;
     submit.disabled = true;
-    $('#authStatus').textContent = 'Подключаем вход…';
+    $('#authStatus').textContent = 'Отправляем письмо со ссылкой для входа…';
     try {
       if (!cloud) throw new Error('Модуль входа недоступен');
-      $('#authStatus').textContent = 'Входим…';
-      const {data, error} = await cloud.auth.signInWithPassword({
-        email: $('#authEmail').value.trim(), password: $('#authPassword').value
+      const {error} = await cloud.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: location.origin + location.pathname
+        }
       });
       if (error) throw error;
-      await syncFromCloud(data.session);
+      $('#authStatus').textContent = 'Письмо отправлено на ' + email + '. Открой письмо и нажми ссылку — пароль не нужен. Проверь папку «Спам», если письма нет.';
+      submit.textContent = 'Письмо отправлено';
     } catch (error) {
-      $('#authStatus').textContent = 'Не удалось войти. Проверь почту и пароль.';
+      console.error('Planner email sign-in failed', error);
+      $('#authStatus').textContent = 'Не удалось отправить письмо. Проверь адрес и настройки почты сервиса, затем попробуй ещё раз.';
     } finally { submit.disabled = false; }
   }
   function safeText(value, max = 500) { return typeof value === 'string' ? value.slice(0, max) : ''; }
@@ -580,17 +587,7 @@
     } catch(error) { status.textContent=error?.message || 'Не удалось отправить тестовое уведомление.'; }
     finally { button.disabled=false; }
   });
-  $('#resetPasswordBtn')?.addEventListener('click', async ()=>{
-    const email = $('#authEmail')?.value.trim();
-    const status = $('#authStatus');
-    if (!email) { status.textContent = 'Сначала укажи адрес электронной почты.'; $('#authEmail')?.focus(); return; }
-    if (!cloud) { status.textContent = 'Сервис входа пока недоступен. Обнови страницу и попробуй снова.'; return; }
-    try {
-      const {error} = await cloud.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname});
-      if (error) throw error;
-      status.textContent = 'Если адрес зарегистрирован, на него придёт письмо для сброса пароля.';
-    } catch (error) { status.textContent = 'Не удалось отправить письмо для сброса пароля. Попробуй позже.'; }
-  });
+  $('#resetPasswordBtn')?.remove();
   $('#clearAllData').addEventListener('click',async()=>{
     if(!confirm('Удалить все события и настройки этого планера? Это нельзя отменить. Сначала скачай резервную копию, если она нужна.')) return;
     items=[]; settings={pregnancyStart:'',dueDate:''};
@@ -761,73 +758,41 @@
   function showCloudConnectionError(error) {
     cloudSyncReady = false;
     activeCloudUserId = null;
-    $('#authGate').classList.add('hidden');
-    $('#authGate').setAttribute('aria-hidden','true');
-    $('#appShell').classList.remove('hidden');
+    $('#appShell').classList.add('hidden');
+    $('#authGate').classList.remove('hidden');
+    $('#authGate').setAttribute('aria-hidden','false');
     const message = String(error?.message || error?.code || error || 'unknown_error');
-    const providerDisabled = /anonymous_provider_disabled|Anonymous sign-ins are disabled/i.test(message);
-    $('#saveStatus').textContent = providerDisabled
-      ? 'Облако не подключено · анонимный вход отклонён'
-      : 'Сохранено на устройстве · облако не подключено';
-    const intro = $('.settings-intro');
-    if (intro) intro.textContent = providerDisabled
-      ? 'Вход без почты отклонён самим Supabase. Проверь Anonymous Sign-Ins именно в проекте txlcyakktgtqgveosojz. Планер продолжает хранить записи локально; нажми «Повторить подключение» после изменения настройки.'
-      : 'Почта не нужна. Пока облако не подключено, записи остаются в этом браузере. Можно повторить подключение без потери локальных записей.';
+    $('#authStatus').textContent = /email|smtp|rate|provider/i.test(message)
+      ? 'Не удалось подключить почту. Проверь настройки Email в Supabase и попробуй ещё раз.'
+      : 'Облако пока недоступно. Проверь интернет и попробуй ещё раз.';
     const pushStatus = $('#pushStatus');
-    if (pushStatus) pushStatus.textContent = 'Push пока недоступен: сначала нужно подключить облачную сессию.';
-    const pushButton = $('#togglePush');
-    if (pushButton) pushButton.disabled = true;
-    const testButton = $('#testPush');
-    if (testButton) testButton.classList.add('hidden');
-    let retry = $('#retryCloudConnection');
-    if (!retry) {
-      retry = document.createElement('button');
-      retry.id = 'retryCloudConnection';
-      retry.type = 'button';
-      retry.className = 'button button-primary';
-      retry.textContent = 'Повторить подключение';
-      retry.addEventListener('click', connectCloud);
-      const status = $('#saveStatus');
-      status.insertAdjacentElement('afterend', retry);
-    }
+    if (pushStatus) pushStatus.textContent = 'Push пока недоступен: сначала войди по ссылке из письма.';
     console.error('Planner cloud connection failed', error);
   }
   async function connectCloud() {
     if (!cloud || authAttemptInProgress) return;
     authAttemptInProgress = true;
-    const retry = $('#retryCloudConnection');
-    if (retry) { retry.disabled = true; retry.textContent = 'Подключаем…'; }
-    $('#saveStatus').textContent = 'Подключаем облако…';
+    $('#authStatus').textContent = 'Проверяем вход…';
     try {
       const {data, error} = await cloud.auth.getSession();
       if (error) throw error;
-      let nextSession = data.session;
-      if (!nextSession) {
-        const {data: anonymous, error: anonymousError} = await cloud.auth.signInAnonymously({
-          options: {data: {planner: 'family-planner'}}
-        });
-        if (anonymousError) throw anonymousError;
-        if (!anonymous.session) throw new Error('anonymous_session_missing');
-        nextSession = anonymous.session;
-      }
-      await syncFromCloud(nextSession);
-      if (cloudSyncReady) {
-        $('#retryCloudConnection')?.remove();
-      } else {
+      const nextSession = data.session;
+      if (nextSession?.user?.email && nextSession.user.is_anonymous !== true) {
+        await syncFromCloud(nextSession);
+        if (cloudSyncReady) return;
         throw new Error('cloud_sync_not_ready');
       }
+      if (nextSession) await cloud.auth.signOut({scope:'local'});
+      showSignedOut();
     } catch (error) {
       showCloudConnectionError(error);
     } finally {
       authAttemptInProgress = false;
-      const button = $('#retryCloudConnection');
-      if (button) { button.disabled = false; button.textContent = 'Повторить подключение'; }
     }
   }
   function initializeAuth() {
     cloud.auth.onAuthStateChange((event, nextSession) => {
-      if (nextSession && !authAttemptInProgress && (event !== 'INITIAL_SESSION' || !activeCloudUserId)) {
-        // The explicit connection flow handles sign-in while it is running.
+      if (nextSession && nextSession.user?.email && nextSession.user.is_anonymous !== true && !authAttemptInProgress) {
         Promise.resolve().then(() => syncFromCloud(nextSession));
       } else if (event === 'SIGNED_OUT') showSignedOut();
     });
