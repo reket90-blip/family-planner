@@ -66,27 +66,28 @@ test('pregnancy weeks are displayed on Today and in a 42-week calendar', () => {
   assert.match(app, /type="date" name="dueDate"/);
 });
 
-test('the planner opens without email and attempts private anonymous cloud sign-in', () => {
-  assert.match(html, /id="authGate" class="auth-gate hidden" aria-hidden="true"/);
-  assert.match(html, /id="appShell"/);
-  assert.match(app, /const guestMode = false/);
-  assert.match(app, /cloud\.auth\.signInAnonymously/);
-  assert.match(app, /Почта не нужна/);
-  assert.match(app, /Сохранено на устройстве/);
-  assert.doesNotMatch(html, /id="signUpForm"|id="registerForm"/);
+test('the planner offers passwordless email registration and login through Supabase', () => {
+  assert.match(html, /id="authGate" class="auth-gate"/);
+  assert.match(html, /type="email" id="authEmail"/);
+  assert.match(html, /Получить ссылку для входа/);
+  assert.doesNotMatch(html, /id="authPassword"|type="password"|resetPasswordBtn/);
+  assert.match(app, /cloud\.auth\.signInWithOtp/);
+  assert.match(app, /shouldCreateUser: true/);
+  assert.match(app, /emailRedirectTo: location\.origin \+ location\.pathname/);
+  assert.doesNotMatch(app, /cloud\.auth\.signInAnonymously/);
+  assert.match(app, /Введи почту — пришлём ссылку для входа без пароля/);
 });
-test('the top brand returns to Today and public registration stays absent', () => {
+test('the top brand returns to Today and each email account gets owner-only data', () => {
   assert.match(app, /\$\('\.brand'\)\.addEventListener\('click'.*setView\('today'\)/);
-  assert.doesNotMatch(html, /id="signUpForm"|id="registerForm"/);
+  assert.match(schema, /nullif\(auth\.jwt\(\) ->> 'email', ''\) is not null/i);
+  assert.match(schema, /auth\.uid\(\)/i);
 });
 
-test('anonymous planner sessions can use the private per-user data policies', () => {
-  for (const source of [schema, anonymousMigration]) {
-    assert.match(source, /auth\.jwt\(\)\s*->>\s*'is_anonymous'/i);
-    assert.match(source, /planner_allowed_users/);
-  }
+test('only email-authenticated sessions can use cloud sync; local data merges after login', () => {
+  assert.match(schema, /coalesce\(\(auth\.jwt\(\) ->> 'is_anonymous'\)::boolean, false\) = false/i);
   assert.match(app, /if \(!guestMode\) queueCloudSync\(\)/);
   assert.match(app, /localStorage\.setItem\(STORE_KEY, JSON\.stringify\(items\)\)/);
+  assert.match(app, /cloud\.auth\.signOut\(\{scope:'local'\}\)/);
 });
 
 test('adding an event saves it locally immediately and renders it without waiting for the cloud', () => {
