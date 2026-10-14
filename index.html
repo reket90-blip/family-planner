@@ -12,22 +12,20 @@
   <title>Наш планер</title>
 </head>
 <body>
-  <section id="authGate" class="auth-gate hidden" aria-hidden="true">
+  <section id="authGate" class="auth-gate" aria-hidden="false">
     <div class="auth-card">
       <div class="auth-mark brand-mark">✿</div>
       <p class="eyebrow">ЛИЧНЫЙ СЕМЕЙНЫЙ ПЛАНЕР</p>
-      <h1>С возвращением</h1>
-      <p class="muted">Войди в свой планер. Публичной регистрации нет — доступ только у приглашённого аккаунта.</p>
+      <h1>Вход без пароля</h1>
+      <p class="muted">Укажи почту. Пришлём письмо со ссылкой для входа. Первый вход создаст аккаунт автоматически — пароль придумывать не нужно.</p>
       <form id="authForm" autocomplete="on">
-        <label>Электронная почта<input type="email" id="authEmail" name="email" required autocomplete="username" inputmode="email" placeholder="name@example.com"></label>
-        <label>Пароль<input type="password" id="authPassword" name="password" required autocomplete="current-password" placeholder="Пароль аккаунта"></label>
-        <button class="button button-primary" id="authSubmit" type="submit" style="width:100%">Войти</button>
-        <button class="text-link" id="resetPasswordBtn" type="button" style="margin-top:14px">Не помню пароль</button>
-        <p id="authStatus" class="auth-status" role="status" aria-live="polite"></p>
+        <label>Электронная почта<input type="email" id="authEmail" name="email" required autocomplete="email" inputmode="email" placeholder="name@example.com"></label>
+        <button class="button button-primary" id="authSubmit" type="submit" style="width:100%">Получить ссылку для входа</button>
+        <p id="authStatus" class="auth-status" role="status" aria-live="polite">Письмо придёт на указанную почту. Нажми ссылку в письме, чтобы открыть свой планер.</p>
       </form>
     </div>
   </section>
-  <div class="app-shell" id="appShell">
+  <div class="app-shell hidden" id="appShell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="Наш планер — главная"><span class="brand-mark">✿</span><span><b>Наш планер</b><small>дом, семья и маленькие радости</small></span></a>
       <div class="topbar-actions"><button id="settingsBtn" class="icon-button settings-trigger" type="button" aria-label="Настройки и резервная копия" title="Настройки">⚙</button><button id="installBtn" class="button button-soft hidden" type="button">Установить</button></div>
