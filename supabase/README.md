@@ -5,8 +5,8 @@
 ## Security model
 
 - В браузере только publishable key; никогда не добавлять service-role key или VAPID private key во frontend/GitHub.
-- Все пользовательские таблицы защищены RLS и приватным allowlist; без приглашения аккаунт не может читать или менять записи.
-- В Supabase Authentication отключить **Allow new users to sign up** и создать только аккаунт жены.
+- Все пользовательские таблицы защищены RLS: подтверждённый вход по email может читать и менять только строки со своим `user_id`.
+- В Supabase Authentication включить email sign-ups и настроить отправку Email OTP/magic link. В production желательно подключить собственный SMTP.
 - В репозитории пока нет реальных записей; репозиторий рекомендуется сделать приватным перед производственным использованием.
 
 ## Database
@@ -30,10 +30,10 @@
 
 ## Account setup
 
-1. Authentication → Settings: отключить публичную регистрацию.
-2. Authentication → Users: пригласить только одну учётную запись.
-3. Authentication → URL Configuration: установить URL сайта планера и добавить точный URL в Redirect URLs.
-4. Войти в планер с приглашённой учётной записью.
+1. Authentication → Providers → Email: включить email sign-ups и OTP/magic links.
+2. Authentication → URL Configuration: установить URL сайта планера и добавить точный URL в Redirect URLs.
+3. Убедиться, что почтовый провайдер отправляет письмо; для надёжной доставки настроить собственный SMTP.
+4. Открыть сайт, ввести почту и перейти по ссылке из письма.
 5. В Настройки → Push-уведомления нажать «Включить уведомления».
 6. На iPhone открыть сайт в Safari, выбрать «Поделиться» → «На экран Домой», затем открыть с иконки. Push доступен для установленных веб-приложений на iOS/iPadOS 16.4+.
 
