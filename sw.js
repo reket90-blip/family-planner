@@ -1,5 +1,5 @@
-const CACHE_NAME = 'family-planner-v16';
-const APP_SHELL = ['./', './index.html', './styles.css?v=20261013-6', './app.js?v=20261014-2', './manifest.webmanifest', './icons/leaf.svg', './icons/apple-touch-icon.svg'];
+const CACHE_NAME = 'family-planner-v17';
+const APP_SHELL = ['./', './index.html', './styles.css?v=20261014-3', './app.js?v=20261014-3', './manifest.webmanifest', './icons/leaf.svg', './icons/apple-touch-icon.svg'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
 });
