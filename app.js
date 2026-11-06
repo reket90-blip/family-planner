@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   // Email-only sign-in: Supabase sends a one-time magic link; no password is required.
-  const guestMode = false;
+  const guestMode = true;
   const STORE_KEY = 'family-planner-guest-items-v1';
   const SETTINGS_KEY = 'family-planner-guest-settings-v1';
   const SUPABASE_URL = 'https://txlcyakktgtqgveosojz.supabase.co';
@@ -556,7 +556,7 @@
     $('#appShell').classList.remove('hidden');
     $('#saveStatus').textContent = 'Гостевой режим — данные только на этом устройстве';
     $('.settings-intro').textContent = 'Гостевой режим: записи сохраняются только в этом браузере на этом устройстве. Они не отправляются в облако и не видны на других телефонах.';
-    $('#signOutBtn').classList.remove('hidden');
+    $('#signOutBtn').classList.add('hidden');
     $('.push-panel').innerHTML = '<h3>Уведомления</h3><p class="muted">В гостевом режиме облачные push-уведомления недоступны. События и задачи можно вести локально.</p>';
   }
   $('.brand').addEventListener('click',event=>{ event.preventDefault(); if ($('#settingsDialog').open) $('#settingsDialog').close(); if ($('#itemDialog').open) $('#itemDialog').close(); setView('today'); });
@@ -797,12 +797,12 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && !cloudSyncReady) connectCloud();
   });
-  if (cloud) initializeAuth();
-  else {
+  if (!guestMode && cloud) initializeAuth();
+  else if (!guestMode) {
     $('#appShell').classList.add('hidden');
     $('#authGate').classList.remove('hidden');
     $('#authGate').setAttribute('aria-hidden','false');
     $('#authStatus').textContent = 'Модуль входа не загрузился. Проверь интернет и обнови страницу.';
   }
-  $('#signOutBtn').classList.remove('hidden');
+  if (!guestMode) $('#signOutBtn').classList.remove('hidden');
 })();
