@@ -557,7 +557,9 @@
     $('#saveStatus').textContent = 'Гостевой режим — данные только на этом устройстве';
     $('.settings-intro').textContent = 'Гостевой режим: записи сохраняются только в этом браузере на этом устройстве. Они не отправляются в облако и не видны на других телефонах.';
     $('#signOutBtn').classList.add('hidden');
-    $('.push-panel').innerHTML = '<h3>Уведомления</h3><p class="muted">В гостевом режиме облачные push-уведомления недоступны. События и задачи можно вести локально.</p>';
+    $('#pushStatus').textContent = 'В гостевом режиме облачные push-уведомления недоступны. События и задачи сохраняются локально.';
+    $('#togglePush').classList.add('hidden');
+    $('#testPush').classList.add('hidden');
   }
   $('.brand').addEventListener('click',event=>{ event.preventDefault(); if ($('#settingsDialog').open) $('#settingsDialog').close(); if ($('#itemDialog').open) $('#itemDialog').close(); setView('today'); });
   $('#settingsBtn').addEventListener('click',()=>{ $('#settingsDialog').showModal(); if (!guestMode) refreshPushStatus(); });
